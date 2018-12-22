@@ -1,36 +1,14 @@
 package org.tumba.gollum.domain.repository
 
+import domain.repository.FieldCondition
 import org.tumba.gollum.domain.entities.Account
-import org.tumba.gollum.domain.entities.Sex
-import org.tumba.gollum.domain.entities.Status
 
 interface IAccountRepository {
+    fun size(): Int
 
-    fun insert(vararg accounts: Account)
+    fun insert(accounts: List<Account>)
 
-    fun filter(query: FilterQuery): List<Account>
-
-    data class FilterQuery(
-        val sex: Sex? = null,
-        val email: String? = null,
-        val status: FieldCondition<Status>
-        // todo
-    )
-
+    fun filter(conditions: List<FieldCondition>, limit: Int): List<Account>
 }
 
-sealed class FieldCondition<T> {
 
-    class Equal<T>(value: T): FieldCondition<T>()
-
-    class NotEqual<T>(value: T): FieldCondition<T>()
-
-    class LessThen<T>(value: T): FieldCondition<T>()
-
-    class GreaterThen<T>(value: T): FieldCondition<T>()
-
-    class Any<T>(values: List<T>): FieldCondition<T>()
-
-    class Contains<T>(values: List<T>): FieldCondition<T>()
-
-}

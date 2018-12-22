@@ -5,28 +5,11 @@ import com.dslplatform.json.runtime.Settings
 import net.lingala.zip4j.core.ZipFile
 import net.lingala.zip4j.exception.ZipException
 import net.lingala.zip4j.model.FileHeader
-import org.tumba.gollum.domain.entities.Account
 import org.tumba.gollum.domain.entities.AccountList
+import org.tumba.gollum.domain.repository.IAccountRepository
 
-// временный репозиторий
-interface AccountRepository {
-    fun save(accounts: List<Account>)
-    fun size(): Int
-}
 
-class InMemoryAccountRepository : AccountRepository {
-    private val accounts: ArrayList<Account> = ArrayList()
-
-    override fun save(accounts: List<Account>) {
-        this.accounts.addAll(accounts)
-    }
-
-    override fun size(): Int {
-        return accounts.size
-    }
-}
-
-class DataImporter(private val accountRepository: AccountRepository) {
+class DataImporter(private val accountRepository: IAccountRepository) {
     fun import() {
         val source = "/tmp/data.zip"
         val dslJson = DslJson<Any>(Settings.withRuntime<Any>().includeServiceLoader())
@@ -39,7 +22,7 @@ class DataImporter(private val accountRepository: AccountRepository) {
                 .forEach { header ->
                     zipFile.getInputStream(header).use { stream ->
                         val accountList = dslJson.deserialize(AccountList::class.java, stream)
-                        accountRepository.save(accountList.accounts)
+                        accountRepository.insert(accountList.accounts)
                     }
                 }
         } catch (e: ZipException) {
