@@ -57,9 +57,15 @@ class MongoAccountRepository(mongoClient: MongoClient, dbName: String) : IAccoun
                 val exists = condition.value == "0"
                 return Filters.exists(condition.fieldName, exists)
             }
+            "starts" -> {
+                return Filters.regex(condition.fieldName, "^${condition.value}")
+            }
             "any" -> {
                 val values = condition.value.split(',')
-                return Filters.elemMatch(condition.fieldName, Document.parse("{ \"\$in\":[${values.joinToString { "\"$it\"" }}]}"))
+                val joint = values.joinToString { "\"$it\"" }
+                if (condition.fieldName == "interests")
+                    return Filters.elemMatch(condition.fieldName, Document.parse("{ \"\$in\":[${joint}]}"))
+                return Filters.`in`(condition.fieldName, values)
             }
             "contains" -> {
                 val values = condition.value.split(',')
