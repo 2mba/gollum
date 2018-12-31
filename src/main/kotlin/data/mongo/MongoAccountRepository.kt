@@ -2,13 +2,14 @@ package org.tumba.gollum.data.mongo
 
 import com.mongodb.MongoClient
 import com.mongodb.client.model.Filters
+import domain.repository.FieldCondition
+import org.bson.Document
 import org.bson.conversions.Bson
 import org.litote.kmongo.getCollection
 import org.tumba.gollum.data.MongoRepository
 import org.tumba.gollum.domain.entities.Account
-import domain.repository.FieldCondition
-import org.bson.Document
 import org.tumba.gollum.domain.repository.IAccountRepository
+import java.time.LocalDate
 
 class MongoAccountRepository(mongoClient: MongoClient, dbName: String) : IAccountRepository, MongoRepository<Account>(mongoClient, dbName) {
     override fun size(): Int {
@@ -48,10 +49,25 @@ class MongoAccountRepository(mongoClient: MongoClient, dbName: String) : IAccoun
                 return Filters.ne(condition.fieldName, condition.value)
             }
             "lt" -> {
+                val number = condition.value.toLongOrNull()
+                if (number != null)
+                    return Filters.lt(condition.fieldName, number)
                 return Filters.lt(condition.fieldName, condition.value)
             }
             "gt" -> {
+                val number = condition.value.toLongOrNull()
+                if (number != null)
+                    return Filters.gt(condition.fieldName, number)
                 return Filters.gt(condition.fieldName, condition.value)
+            }
+            "year" -> {
+                val year = condition.value.toInt()
+                val yearStart = LocalDate.of(year, 1, 1).toEpochDay() * 60 * 60 * 24
+                val yearEnd = LocalDate.of(year+1, 1, 1).toEpochDay()* 60 * 60 * 24
+
+                return Filters.and(
+                    Filters.gte(condition.fieldName, yearStart),
+                    Filters.lt(condition.fieldName, yearEnd))
             }
             "null" -> {
                 val exists = condition.value == "0"
@@ -59,6 +75,9 @@ class MongoAccountRepository(mongoClient: MongoClient, dbName: String) : IAccoun
             }
             "starts" -> {
                 return Filters.regex(condition.fieldName, "^${condition.value}")
+            }
+            "code" -> {
+                return Filters.regex(condition.fieldName, "\\(${condition.value}\\)")
             }
             "any" -> {
                 val values = condition.value.split(',')
@@ -69,6 +88,9 @@ class MongoAccountRepository(mongoClient: MongoClient, dbName: String) : IAccoun
             }
             "contains" -> {
                 val values = condition.value.split(',')
+                if (condition.fieldName == "likes") {
+                    return Filters.all("${condition.fieldName}._id", values.map { it.toInt() });
+                }
                 return Filters.all(condition.fieldName, values)
             }
             "domain" -> {
