@@ -8,6 +8,8 @@ interface IAccountRepository {
 
     fun insert(accounts: List<Account>)
 
+    fun insert(account: Account)
+
     fun filter(conditions: List<FieldCondition>, limit: Int): List<Account>
 }
 

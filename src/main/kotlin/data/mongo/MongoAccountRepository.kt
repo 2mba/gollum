@@ -2,6 +2,7 @@ package org.tumba.gollum.data.mongo
 
 import com.mongodb.MongoClient
 import com.mongodb.client.model.Filters
+import com.mongodb.client.model.Projections
 import domain.repository.FieldCondition
 import org.bson.Document
 import org.bson.conversions.Bson
@@ -23,6 +24,7 @@ class MongoAccountRepository(mongoClient: MongoClient, dbName: String) : IAccoun
         if (filters.any()) {
             return db.getCollection<Account>()
                 .find(Filters.and(filters))
+                .projection(Projections.exclude("interests", "likes"))
                 .limit(limit)
                 .toList()
         }
@@ -30,6 +32,7 @@ class MongoAccountRepository(mongoClient: MongoClient, dbName: String) : IAccoun
         return db.getCollection<Account>()
             .find()
             .limit(limit)
+            .projection(Projections.exclude("interests", "likes"))
             .toList()
     }
 
@@ -37,6 +40,11 @@ class MongoAccountRepository(mongoClient: MongoClient, dbName: String) : IAccoun
         db.getCollection<Account>()
             .insertMany(accounts)
 
+    }
+
+    override fun insert(account: Account) {
+        db.getCollection<Account>()
+            .insertOne(account)
     }
 
     private fun mapFieldCondition(condition: FieldCondition): Bson {
@@ -89,7 +97,7 @@ class MongoAccountRepository(mongoClient: MongoClient, dbName: String) : IAccoun
             "contains" -> {
                 val values = condition.value.split(',')
                 if (condition.fieldName == "likes") {
-                    return Filters.all("${condition.fieldName}._id", values.map { it.toInt() });
+                    return Filters.all("${condition.fieldName}._id", values.map { it.toInt() })
                 }
                 return Filters.all(condition.fieldName, values)
             }

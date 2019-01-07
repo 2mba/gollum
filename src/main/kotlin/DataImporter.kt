@@ -11,7 +11,9 @@ import org.tumba.gollum.domain.repository.IAccountRepository
 
 class DataImporter(private val accountRepository: IAccountRepository) {
     fun import() {
-        val source = "/tmp/data.zip"
+        //val source = "/tmp/data.zip"
+        val source = "C:\\temp\\data.zip"
+
         val dslJson = DslJson<Any>(Settings.withRuntime<Any>().includeServiceLoader())
 
         try {

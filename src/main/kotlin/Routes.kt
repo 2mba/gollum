@@ -1,6 +1,7 @@
 package org.tumba.gollum
 
 import domain.repository.FieldCondition
+import domain.repository.validate
 import io.ktor.application.ApplicationCall
 import io.ktor.application.call
 import io.ktor.http.HttpStatusCode
@@ -8,29 +9,37 @@ import io.ktor.request.path
 import io.ktor.response.respond
 import io.ktor.routing.Routing
 import io.ktor.routing.get
-import io.ktor.routing.post
 import io.ktor.routing.route
 import io.ktor.util.filter
 import io.ktor.util.flattenEntries
 import io.ktor.util.pipeline.PipelineContext
-import io.ktor.util.toMap
 import org.tumba.gollum.data.mongo.MongoAccountRepository
+
 
 class Routes(private val repository: MongoAccountRepository) {
     fun getRoute(routing: Routing) {
         routing.route("accounts") {
             get("filter") {
                 val queryParams = context.request.queryParameters
-                    .filter { k, _ -> k != "limit" && k != "query_id" }
+                    .filter { param, _ -> param != "limit" && param != "query_id" }
                     .flattenEntries()
-                val map: List<FieldCondition>
+
+                val fieldConditions: List<FieldCondition>
 
                 try {
-                    map = queryParams
-                        .map {
-                            val keyParts = it.first.split('_')
-                            FieldCondition(keyParts[0], keyParts[1], it.second)
+                    fieldConditions = queryParams.map {
+                        val keyParts = it.first.split('_')
+                        if (keyParts.size != 2 || keyParts[0].isEmpty() || keyParts[1].isEmpty()) {
+                            call.respond(HttpStatusCode.BadRequest)
+                            return@get
                         }
+                        val condition = FieldCondition(keyParts[0], keyParts[1], it.second)
+                        if (!condition.validate()) {
+                            call.respond(HttpStatusCode.BadRequest)
+                            return@get
+                        }
+                        condition
+                    }
                 }
                 catch (e: Exception) {
                     call.respond(HttpStatusCode.BadRequest)
@@ -40,30 +49,29 @@ class Routes(private val repository: MongoAccountRepository) {
                 val limitStr = context.request.queryParameters["limit"]
                 val limit = limitStr!!.toInt()
 
-                val accounts = repository.filter(map, limit)
+                val accounts = repository.filter(fieldConditions, limit)
                 call.respond(accounts)
-
             }
-            get("group") {
-                notImplemented()
-            }
-            route("{id}") {
-                get("recommend") {
-                    notImplemented()
-                }
-                get("suggest") {
-                    notImplemented()
-                }
-                post("/") {
-                    notImplemented()
-                }
-            }
-            post("new") {
-                notImplemented()
-            }
-            post("likes") {
-                notImplemented()
-            }
+//            get("group") {
+//                notImplemented()
+//            }
+//            route("{id}") {
+//                get("recommend") {
+//                    notImplemented()
+//                }
+//                get("suggest") {
+//                    notImplemented()
+//                }
+//                post("/") {
+//                    notImplemented()
+//                }
+//            }
+//            post("new") {
+//                notImplemented()
+//            }
+//            post("likes") {
+//                notImplemented()
+//            }
         }
     }
 }
