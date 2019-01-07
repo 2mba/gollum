@@ -4,5 +4,5 @@ import com.dslplatform.json.CompiledJson
 
 @CompiledJson
 data class AccountList(
-    val accounts: ArrayList<Account>
+    val accounts: List<Account>
 )

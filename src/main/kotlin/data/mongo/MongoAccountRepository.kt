@@ -9,10 +9,18 @@ import org.bson.conversions.Bson
 import org.litote.kmongo.getCollection
 import org.tumba.gollum.data.MongoRepository
 import org.tumba.gollum.domain.entities.Account
+import org.tumba.gollum.domain.repository.AccountGroup
+import org.tumba.gollum.domain.repository.Field
+import org.tumba.gollum.domain.repository.GroupQuery
 import org.tumba.gollum.domain.repository.IAccountRepository
 import java.time.LocalDate
 
 class MongoAccountRepository(mongoClient: MongoClient, dbName: String) : IAccountRepository, MongoRepository<Account>(mongoClient, dbName) {
+    override fun group(query: GroupQuery, limit: Int, order: Int): List<AccountGroup> {
+
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
     override fun size(): Int {
         return db.getCollection<Account>()
             .countDocuments()
@@ -114,5 +122,14 @@ class MongoAccountRepository(mongoClient: MongoClient, dbName: String) : IAccoun
         }
 
         throw IllegalArgumentException(condition.predicate)
+    }
+
+    private fun mapField(field: Field): Bson {
+        if (field.name == "likes")
+            return Filters.eq("${field.name}.id", field.value.toLong())
+        if (field.name == "interests")
+            return Filters.elemMatch(field.name, Document.parse("{ \"\$eq\":${field.value}}"))
+
+        return Filters.eq(field.name, field.value)
     }
 }

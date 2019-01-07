@@ -6,14 +6,18 @@ import io.ktor.application.ApplicationCall
 import io.ktor.application.call
 import io.ktor.http.HttpStatusCode
 import io.ktor.request.path
+import io.ktor.request.receive
 import io.ktor.response.respond
 import io.ktor.routing.Routing
 import io.ktor.routing.get
+import io.ktor.routing.post
 import io.ktor.routing.route
 import io.ktor.util.filter
 import io.ktor.util.flattenEntries
 import io.ktor.util.pipeline.PipelineContext
 import org.tumba.gollum.data.mongo.MongoAccountRepository
+import org.tumba.gollum.domain.entities.Account
+import org.tumba.gollum.domain.entities.AccountList
 
 
 class Routes(private val repository: MongoAccountRepository) {
@@ -30,19 +34,19 @@ class Routes(private val repository: MongoAccountRepository) {
                     fieldConditions = queryParams.map {
                         val keyParts = it.first.split('_')
                         if (keyParts.size != 2 || keyParts[0].isEmpty() || keyParts[1].isEmpty()) {
-                            call.respond(HttpStatusCode.BadRequest)
+                            call.respond(HttpStatusCode.BadRequest, {})
                             return@get
                         }
                         val condition = FieldCondition(keyParts[0], keyParts[1], it.second)
                         if (!condition.validate()) {
-                            call.respond(HttpStatusCode.BadRequest)
+                            call.respond(HttpStatusCode.BadRequest, {})
                             return@get
                         }
                         condition
                     }
                 }
                 catch (e: Exception) {
-                    call.respond(HttpStatusCode.BadRequest)
+                    call.respond(HttpStatusCode.BadRequest, {})
                     return@get
                 }
 
@@ -50,7 +54,7 @@ class Routes(private val repository: MongoAccountRepository) {
                 val limit = limitStr!!.toInt()
 
                 val accounts = repository.filter(fieldConditions, limit)
-                call.respond(accounts)
+                call.respond(AccountList(accounts))
             }
 //            get("group") {
 //                notImplemented()
@@ -66,9 +70,12 @@ class Routes(private val repository: MongoAccountRepository) {
 //                    notImplemented()
 //                }
 //            }
-//            post("new") {
-//                notImplemented()
-//            }
+            post("new") {
+                val account = call.receive<Account>()
+                // TODO: validation, conflict, etc
+                repository.insert(account)
+                call.respond(HttpStatusCode.Created, {})
+            }
 //            post("likes") {
 //                notImplemented()
 //            }

@@ -18,7 +18,7 @@ fun main(args: Array<String>) {
 
     println("Current account repository: " + accountRepository.size())
 
-    embeddedServer(Netty, 8080) {
+    embeddedServer(Netty, 80) {
         install(ContentNegotiation) {
             jackson {
             }

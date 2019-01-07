@@ -11,6 +11,6 @@ interface IAccountRepository {
     fun insert(account: Account)
 
     fun filter(conditions: List<FieldCondition>, limit: Int): List<Account>
+
+    fun group(query: GroupQuery, limit: Int, order: Int): List<AccountGroup>
 }
-
-
