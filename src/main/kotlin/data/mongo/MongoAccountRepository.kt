@@ -104,6 +104,13 @@ class MongoAccountRepository(mongoClient: MongoClient, dbName: String) : IAccoun
             "domain" -> {
                 return Filters.regex(condition.fieldName, condition.value + "$")
             }
+            "now" -> {
+                val number = condition.value.toLong()
+                return Filters.and(
+                    Filters.gt("${condition.fieldName}.start", number),
+                    Filters.lt("${condition.fieldName}.finish", number)
+                )
+            }
         }
 
         throw IllegalArgumentException(condition.predicate)

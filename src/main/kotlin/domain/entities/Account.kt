@@ -5,7 +5,7 @@ import com.dslplatform.json.CompiledJson
 @CompiledJson
 data class Premium(
     val start: Long,
-    val end: Long
+    val finish: Long
 )
 
 @CompiledJson
