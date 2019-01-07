@@ -11,8 +11,8 @@ import org.tumba.gollum.domain.repository.IAccountRepository
 
 class DataImporter(private val accountRepository: IAccountRepository) {
     fun import() {
-        //val source = "/tmp/data.zip"
-        val source = "C:\\temp\\data.zip"
+        val source = "/tmp/data/data.zip"
+        //val source = "C:\\temp\\data.zip"
 
         val dslJson = DslJson<Any>(Settings.withRuntime<Any>().includeServiceLoader())
 
@@ -24,7 +24,10 @@ class DataImporter(private val accountRepository: IAccountRepository) {
                 .forEach { header ->
                     zipFile.getInputStream(header).use { stream ->
                         val accountList = dslJson.deserialize(AccountList::class.java, stream)
-                        accountRepository.insert(accountList.accounts)
+                        val chunked = accountList.accounts.chunked(60000)
+                        chunked.forEach {
+                            accountRepository.insert(it)
+                        }
                     }
                 }
         } catch (e: ZipException) {

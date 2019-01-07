@@ -3,6 +3,7 @@ package org.tumba.gollum.data.mongo
 import com.mongodb.MongoClient
 import com.mongodb.client.model.Filters
 import com.mongodb.client.model.Projections
+import com.mongodb.client.model.Sorts
 import domain.repository.FieldCondition
 import org.bson.Document
 import org.bson.conversions.Bson
@@ -17,7 +18,6 @@ import java.time.LocalDate
 
 class MongoAccountRepository(mongoClient: MongoClient, dbName: String) : IAccountRepository, MongoRepository<Account>(mongoClient, dbName) {
     override fun group(query: GroupQuery, limit: Int, order: Int): List<AccountGroup> {
-
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
@@ -29,18 +29,28 @@ class MongoAccountRepository(mongoClient: MongoClient, dbName: String) : IAccoun
 
     override fun filter(conditions: List<FieldCondition>, limit: Int): List<Account> {
         val filters = conditions.map { mapFieldCondition(it) }
+        var projectionFields = conditions
+            .asSequence()
+            .map { c -> c.fieldName }
+            .plus(arrayListOf("email", "id"))
+            .distinct()
+            .minus(arrayListOf("interests", "likes"))
+            .toList()
+
         if (filters.any()) {
             return db.getCollection<Account>()
                 .find(Filters.and(filters))
-                .projection(Projections.exclude("interests", "likes"))
+                .projection(Projections.include(projectionFields))
+                .sort(Sorts.descending())
                 .limit(limit)
                 .toList()
         }
 
         return db.getCollection<Account>()
             .find()
+            .projection(Projections.include(projectionFields))
+            .sort(Sorts.descending())
             .limit(limit)
-            .projection(Projections.exclude("interests", "likes"))
             .toList()
     }
 
@@ -99,7 +109,11 @@ class MongoAccountRepository(mongoClient: MongoClient, dbName: String) : IAccoun
                 val values = condition.value.split(',')
                 val joint = values.joinToString { "\"$it\"" }
                 if (condition.fieldName == "interests")
-                    return Filters.elemMatch(condition.fieldName, Document.parse("{ \"\$in\":[${joint}]}"))
+                    return Filters.and(
+                        Filters.exists(condition.fieldName),
+                        Filters.elemMatch(condition.fieldName, Document.parse("{ \"\$in\":[${joint}]}"))
+                    )
+
                 return Filters.`in`(condition.fieldName, values)
             }
             "contains" -> {

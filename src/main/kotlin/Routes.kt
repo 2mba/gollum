@@ -34,19 +34,19 @@ class Routes(private val repository: MongoAccountRepository) {
                     fieldConditions = queryParams.map {
                         val keyParts = it.first.split('_')
                         if (keyParts.size != 2 || keyParts[0].isEmpty() || keyParts[1].isEmpty()) {
-                            call.respond(HttpStatusCode.BadRequest, {})
+                            call.respond(HttpStatusCode.BadRequest, "{}")
                             return@get
                         }
                         val condition = FieldCondition(keyParts[0], keyParts[1], it.second)
                         if (!condition.validate()) {
-                            call.respond(HttpStatusCode.BadRequest, {})
+                            call.respond(HttpStatusCode.BadRequest, "{}")
                             return@get
                         }
                         condition
                     }
                 }
                 catch (e: Exception) {
-                    call.respond(HttpStatusCode.BadRequest, {})
+                    call.respond(HttpStatusCode.BadRequest, "{}")
                     return@get
                 }
 
@@ -74,7 +74,7 @@ class Routes(private val repository: MongoAccountRepository) {
                 val account = call.receive<Account>()
                 // TODO: validation, conflict, etc
                 repository.insert(account)
-                call.respond(HttpStatusCode.Created, {})
+                call.respond(HttpStatusCode.Created, "{}")
             }
 //            post("likes") {
 //                notImplemented()
