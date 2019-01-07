@@ -1,5 +1,6 @@
 package org.tumba.gollum
 
+import com.fasterxml.jackson.annotation.JsonInclude
 import io.ktor.application.install
 import io.ktor.features.ContentNegotiation
 import io.ktor.jackson.jackson
@@ -21,6 +22,7 @@ fun main(args: Array<String>) {
     embeddedServer(Netty, 80) {
         install(ContentNegotiation) {
             jackson {
+                this.setSerializationInclusion(JsonInclude.Include.NON_NULL)
             }
         }
         routing { Routes(accountRepository).getRoute(this) }
