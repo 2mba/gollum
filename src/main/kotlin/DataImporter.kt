@@ -9,22 +9,20 @@ import org.tumba.gollum.domain.entities.AccountList
 import org.tumba.gollum.domain.repository.IAccountRepository
 
 
-class DataImporter(private val accountRepository: IAccountRepository) {
+class DataImporter(private val accountRepository: IAccountRepository, private val path: String) {
     fun import() {
-        val source = "/tmp/data/data.zip"
-        //val source = "C:\\temp\\data.zip"
-
         val dslJson = DslJson<Any>(Settings.withRuntime<Any>().includeServiceLoader())
 
         try {
-            val zipFile = ZipFile(source)
+            val zipFile = ZipFile(path)
             val fileHeaders = zipFile.fileHeaders as List<FileHeader>
             fileHeaders
                 .filter { it -> it.fileName.startsWith("accounts_") }
                 .forEach { header ->
                     zipFile.getInputStream(header).use { stream ->
                         val accountList = dslJson.deserialize(AccountList::class.java, stream)
-                        val chunked = accountList.accounts.chunked(60000)
+                        val chunked = accountList.accounts.chunked(30000)
+
                         chunked.forEach {
                             accountRepository.insert(it)
                         }

@@ -5,6 +5,7 @@ import domain.repository.validate
 import io.ktor.application.ApplicationCall
 import io.ktor.application.call
 import io.ktor.http.HttpStatusCode
+import io.ktor.request.ContentTransformationException
 import io.ktor.request.path
 import io.ktor.request.receive
 import io.ktor.response.respond
@@ -18,6 +19,7 @@ import io.ktor.util.pipeline.PipelineContext
 import org.tumba.gollum.data.mongo.MongoAccountRepository
 import org.tumba.gollum.domain.entities.Account
 import org.tumba.gollum.domain.entities.AccountList
+import org.tumba.gollum.domain.entities.validate
 
 
 class Routes(private val repository: MongoAccountRepository) {
@@ -71,10 +73,21 @@ class Routes(private val repository: MongoAccountRepository) {
 //                }
 //            }
             post("new") {
-                val account = call.receive<Account>()
-                // TODO: validation, conflict, etc
-                repository.insert(account)
-                call.respond(HttpStatusCode.Created, "{}")
+                try {
+                    val account = call.receive<Account>()
+                    if (!account.validate()) {
+                        call.respond(HttpStatusCode.BadRequest, "{}")
+                        return@post
+                    }
+
+                    if (!repository.insert(account)) {
+                        call.respond(HttpStatusCode.BadRequest, "{}")
+                        return@post
+                    }
+                    call.respond(HttpStatusCode.Created, "{}")
+                } catch (ex: ContentTransformationException) {
+                    call.respond(HttpStatusCode.BadRequest, "{}")
+                }
             }
 //            post("likes") {
 //                notImplemented()

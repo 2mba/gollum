@@ -1,22 +1,33 @@
 package org.tumba.gollum.data.mongo
 
 import com.mongodb.MongoClient
+import com.mongodb.MongoWriteException
 import com.mongodb.client.model.Filters
+import com.mongodb.client.model.IndexOptions
 import com.mongodb.client.model.Projections
 import com.mongodb.client.model.Sorts
 import domain.repository.FieldCondition
 import org.bson.Document
 import org.bson.conversions.Bson
+import org.litote.kmongo.ensureIndex
 import org.litote.kmongo.getCollection
 import org.tumba.gollum.data.MongoRepository
 import org.tumba.gollum.domain.entities.Account
 import org.tumba.gollum.domain.repository.AccountGroup
-import org.tumba.gollum.domain.repository.Field
 import org.tumba.gollum.domain.repository.GroupQuery
 import org.tumba.gollum.domain.repository.IAccountRepository
 import java.time.LocalDate
 
-class MongoAccountRepository(mongoClient: MongoClient, dbName: String) : IAccountRepository, MongoRepository<Account>(mongoClient, dbName) {
+class MongoAccountRepository(mongoClient: MongoClient, dbName: String, private val now: Long) : IAccountRepository,
+    MongoRepository<Account>(mongoClient, dbName) {
+
+    public fun createIndexes() {
+        db.getCollection<Account>()
+            .ensureIndex(Document("email", 1), IndexOptions().unique(true))
+        db.getCollection<Account>()
+            .ensureIndex(Document("phone", 1), IndexOptions().unique(true))
+    }
+
     override fun group(query: GroupQuery, limit: Int, order: Int): List<AccountGroup> {
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
@@ -41,7 +52,7 @@ class MongoAccountRepository(mongoClient: MongoClient, dbName: String) : IAccoun
             return db.getCollection<Account>()
                 .find(Filters.and(filters))
                 .projection(Projections.include(projectionFields))
-                .sort(Sorts.descending())
+                .sort(Sorts.descending("_id"))
                 .limit(limit)
                 .toList()
         }
@@ -49,7 +60,7 @@ class MongoAccountRepository(mongoClient: MongoClient, dbName: String) : IAccoun
         return db.getCollection<Account>()
             .find()
             .projection(Projections.include(projectionFields))
-            .sort(Sorts.descending())
+            .sort(Sorts.descending("_id"))
             .limit(limit)
             .toList()
     }
@@ -60,9 +71,13 @@ class MongoAccountRepository(mongoClient: MongoClient, dbName: String) : IAccoun
 
     }
 
-    override fun insert(account: Account) {
-        db.getCollection<Account>()
-            .insertOne(account)
+    override fun insert(account: Account): Boolean {
+        try {
+            db.getCollection<Account>().insertOne(account)
+            return true
+        } catch (ex: MongoWriteException) {
+            return false
+        }
     }
 
     private fun mapFieldCondition(condition: FieldCondition): Bson {
@@ -127,23 +142,13 @@ class MongoAccountRepository(mongoClient: MongoClient, dbName: String) : IAccoun
                 return Filters.regex(condition.fieldName, condition.value + "$")
             }
             "now" -> {
-                val number = condition.value.toLong()
                 return Filters.and(
-                    Filters.gt("${condition.fieldName}.start", number),
-                    Filters.lt("${condition.fieldName}.finish", number)
+                    Filters.gt("${condition.fieldName}.start", now),
+                    Filters.lt("${condition.fieldName}.finish", now)
                 )
             }
         }
 
         throw IllegalArgumentException(condition.predicate)
-    }
-
-    private fun mapField(field: Field): Bson {
-        if (field.name == "likes")
-            return Filters.eq("${field.name}.id", field.value.toLong())
-        if (field.name == "interests")
-            return Filters.elemMatch(field.name, Document.parse("{ \"\$eq\":${field.value}}"))
-
-        return Filters.eq(field.name, field.value)
     }
 }
