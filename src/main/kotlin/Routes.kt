@@ -5,7 +5,6 @@ import domain.repository.validate
 import io.ktor.application.ApplicationCall
 import io.ktor.application.call
 import io.ktor.http.HttpStatusCode
-import io.ktor.request.ContentTransformationException
 import io.ktor.request.path
 import io.ktor.request.receive
 import io.ktor.response.respond
@@ -19,6 +18,7 @@ import io.ktor.util.pipeline.PipelineContext
 import org.tumba.gollum.data.mongo.MongoAccountRepository
 import org.tumba.gollum.domain.entities.Account
 import org.tumba.gollum.domain.entities.AccountList
+import org.tumba.gollum.domain.entities.AccountPatch
 import org.tumba.gollum.domain.entities.validate
 
 
@@ -73,21 +73,60 @@ class Routes(private val repository: MongoAccountRepository) {
 //                }
 //            }
             post("new") {
-                try {
-                    val account = call.receive<Account>()
-                    if (!account.validate()) {
-                        call.respond(HttpStatusCode.BadRequest, "{}")
-                        return@post
-                    }
+                val account: Account
 
-                    if (!repository.insert(account)) {
-                        call.respond(HttpStatusCode.BadRequest, "{}")
+                try {
+                    account = call.receive<Account>()
+                } catch (ex: Throwable) {
+                    call.respond(HttpStatusCode.BadRequest, "{}")
+                    return@post
+                }
+                if (!account.validate()) {
+                    call.respond(HttpStatusCode.BadRequest, "{}")
+                    return@post
+                }
+
+                if (!repository.insert(account)) {
+                    call.respond(HttpStatusCode.BadRequest, "{}")
+                    return@post
+                }
+
+                call.respond(HttpStatusCode.Created, "{}")
+                return@post
+            }
+            post("{id}") {
+                val idStr = call.parameters["id"]
+                if (idStr == null) {
+                    call.respond(HttpStatusCode.BadRequest, "{}")
+                    return@post
+                }
+                val id = idStr.toLongOrNull()
+                if (id == null) {
+                    call.respond(HttpStatusCode.BadRequest, "{}")
+                    return@post
+                }
+
+                val accountPatch: AccountPatch
+
+                try {
+                    accountPatch = call.receive<AccountPatch>()
+                } catch (ex: Throwable) {
+                    call.respond(HttpStatusCode.BadRequest, "{}")
+                    return@post
+                }
+
+                try {
+                    if (!repository.update(id, accountPatch)) {
+                        call.respond(HttpStatusCode.NotFound, "{}")
                         return@post
                     }
-                    call.respond(HttpStatusCode.Created, "{}")
-                } catch (ex: ContentTransformationException) {
+                } catch (ex: IllegalArgumentException) {
                     call.respond(HttpStatusCode.BadRequest, "{}")
+                    return@post
                 }
+
+                call.respond(HttpStatusCode.Accepted, "{}")
+                return@post
             }
 //            post("likes") {
 //                notImplemented()

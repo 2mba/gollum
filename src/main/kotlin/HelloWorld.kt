@@ -11,16 +11,17 @@ import io.ktor.server.netty.Netty
 import org.litote.kmongo.KMongo
 import org.tumba.gollum.data.mongo.MongoAccountRepository
 import java.io.File
+import kotlin.system.measureTimeMillis
 
 
 fun main(args: Array<String>) {
-    val port = 9000
+    val port = 80
     val importTimeoutMs = 1000 * 60 * 5
     val dbHostname = "localhost"
     val dbName = "contest"
 
-    val dataPath = "/tmp/data/data.zip"
-    val optionsPath = "/tmp/data/options.txt"
+    val dataPath = "/tmp/data/data.zip"//"C:\\temp\\data.zip"//"/tmp/data/data.zip"
+    val optionsPath = "/tmp/data/options.txt"//"C:\\temp\\options.txt" //"/tmp/data/options.txt"
     val optionsLines = File(optionsPath).readLines()
     val optionsNow = optionsLines[0].trim().toLong()
 
@@ -31,7 +32,8 @@ fun main(args: Array<String>) {
     importRepository.createIndexes()
 
     val dataImporter = DataImporter(importRepository, dataPath)
-    dataImporter.import()
+    val time = measureTimeMillis { dataImporter.import() }
+    println("Import $time ms")
 
     val mongoClient = KMongo.createClient(dbHostname)
     val accountRepository = MongoAccountRepository(mongoClient, dbName, optionsNow)

@@ -2,17 +2,16 @@ package org.tumba.gollum.data.mongo
 
 import com.mongodb.MongoClient
 import com.mongodb.MongoWriteException
-import com.mongodb.client.model.Filters
-import com.mongodb.client.model.IndexOptions
-import com.mongodb.client.model.Projections
-import com.mongodb.client.model.Sorts
+import com.mongodb.client.model.*
 import domain.repository.FieldCondition
 import org.bson.Document
 import org.bson.conversions.Bson
 import org.litote.kmongo.ensureIndex
 import org.litote.kmongo.getCollection
+import org.litote.kmongo.updateOneById
 import org.tumba.gollum.data.MongoRepository
 import org.tumba.gollum.domain.entities.Account
+import org.tumba.gollum.domain.entities.AccountPatch
 import org.tumba.gollum.domain.repository.AccountGroup
 import org.tumba.gollum.domain.repository.GroupQuery
 import org.tumba.gollum.domain.repository.IAccountRepository
@@ -20,12 +19,67 @@ import java.time.LocalDate
 
 class MongoAccountRepository(mongoClient: MongoClient, dbName: String, private val now: Long) : IAccountRepository,
     MongoRepository<Account>(mongoClient, dbName) {
+    override fun update(id: Long, accountPatch: AccountPatch): Boolean {
+        val update = ArrayList<Bson>()
+        if (accountPatch.email != null) {
+            update.add(Updates.set("email", accountPatch.email))
+        }
+        if (accountPatch.birth != null) {
+            update.add(Updates.set("birth", accountPatch.birth))
+        }
+        if (accountPatch.city != null) {
+            update.add(Updates.set("city", accountPatch.city))
+        }
+        if (accountPatch.country != null) {
+            update.add(Updates.set("country", accountPatch.country))
+        }
+        if (accountPatch.fname != null) {
+            update.add(Updates.set("fname", accountPatch.fname))
+        }
+        if (accountPatch.sname != null) {
+            update.add(Updates.set("sname", accountPatch.sname))
+        }
+        if (accountPatch.interests != null) {
+            update.add(Updates.set("interests", accountPatch.interests))
+        }
+        if (accountPatch.joined != null) {
+            update.add(Updates.set("joined", accountPatch.joined))
+        }
+        if (accountPatch.likes != null) {
+            update.add(Updates.set("likes", accountPatch.likes))
+        }
+        if (accountPatch.phone != null) {
+            update.add(Updates.set("phone", accountPatch.phone))
+        }
+        if (accountPatch.premium != null) {
+            update.add(Updates.set("premium", accountPatch.premium))
+        }
+        if (accountPatch.sex != null) {
+            update.add(Updates.set("sex", accountPatch.sex))
+        }
+        if (accountPatch.status != null) {
+            update.add(Updates.set("status", accountPatch.status))
+        }
+        val updateDocument = Updates.combine(update)
+        val updateOptions = UpdateOptions().upsert(false)
+        val updateResult = db.getCollection<Account>().updateOneById(id, updateDocument, updateOptions)
+
+        if (updateResult.matchedCount == 0L) {
+            return false
+        }
+
+        if (updateResult.modifiedCount == 0L) {
+            throw IllegalArgumentException()
+        }
+
+        return true
+    }
 
     public fun createIndexes() {
         db.getCollection<Account>()
             .ensureIndex(Document("email", 1), IndexOptions().unique(true))
-        db.getCollection<Account>()
-            .ensureIndex(Document("phone", 1), IndexOptions().unique(true))
+//        db.getCollection<Account>()
+//            .ensureIndex(Document("phone", 1), IndexOptions().unique(true).sparse(true))
     }
 
     override fun group(query: GroupQuery, limit: Int, order: Int): List<AccountGroup> {
@@ -143,8 +197,9 @@ class MongoAccountRepository(mongoClient: MongoClient, dbName: String, private v
             }
             "now" -> {
                 return Filters.and(
-                    Filters.gt("${condition.fieldName}.start", now),
-                    Filters.lt("${condition.fieldName}.finish", now)
+                    Filters.exists(condition.fieldName),
+                    Filters.lte("${condition.fieldName}.start", now),
+                    Filters.gte("${condition.fieldName}.finish", now)
                 )
             }
         }

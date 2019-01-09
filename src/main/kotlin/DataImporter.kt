@@ -21,7 +21,9 @@ class DataImporter(private val accountRepository: IAccountRepository, private va
                 .forEach { header ->
                     zipFile.getInputStream(header).use { stream ->
                         val accountList = dslJson.deserialize(AccountList::class.java, stream)
+                        println("${header.fileName}: Accounts ${accountList.accounts.size}")
                         val chunked = accountList.accounts.chunked(30000)
+                        println("Memory usage. Total: ${Runtime.getRuntime().totalMemory()} Free: ${Runtime.getRuntime().freeMemory()}")
 
                         chunked.forEach {
                             accountRepository.insert(it)
