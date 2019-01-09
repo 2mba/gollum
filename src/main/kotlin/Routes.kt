@@ -15,14 +15,14 @@ import io.ktor.routing.route
 import io.ktor.util.filter
 import io.ktor.util.flattenEntries
 import io.ktor.util.pipeline.PipelineContext
-import org.tumba.gollum.data.mongo.MongoAccountRepository
 import org.tumba.gollum.domain.entities.Account
 import org.tumba.gollum.domain.entities.AccountList
 import org.tumba.gollum.domain.entities.AccountPatch
 import org.tumba.gollum.domain.entities.validate
+import org.tumba.gollum.domain.repository.IAccountRepository
 
 
-class Routes(private val repository: MongoAccountRepository) {
+class Routes(private val repository: IAccountRepository) {
     fun getRoute(routing: Routing) {
         routing.route("accounts") {
             get("filter") {
