@@ -1,18 +1,22 @@
 FROM openjdk:8-jre
 
-RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 9DA31620334BD75D9DCB49F368818C72E52529D4
-RUN echo "deb http://repo.mongodb.org/apt/debian stretch/mongodb-org/4.0 main" | tee /etc/apt/sources.list.d/mongodb-org-4.0.list
-RUN apt-get update
-RUN apt-get install -y mongodb-org
-RUN mkdir -p /mongodb/db
+ENV MYSQL_USER=mysql \
+    MYSQL_VERSION=8.0.13 \
+    MYSQL_DATA_DIR=/var/lib/mysql \
+    MYSQL_RUN_DIR=/run/mysqld \
+    MYSQL_LOG_DIR=/var/log/mysql
 
-RUN echo 'mongod --fork --dbpath=/mongodb/db --logpath=/mongodb/mongo.log &' >> start_mongo.sh
-RUN chmod a+x start_mongo.sh
+RUN apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y mysql-server=${MYSQL_VERSION}* \
+ && rm -rf ${MYSQL_DATA_DIR} \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY entrypoint.sh /sbin/entrypoint.sh
+RUN chmod a+x /sbin/entrypoint.sh
 
 COPY script.sh script.sh
 RUN chmod a+x script.sh
 
 COPY ./build/libs/my-application.jar my-application.jar
 
-RUN ls -l
 CMD ./script.sh
