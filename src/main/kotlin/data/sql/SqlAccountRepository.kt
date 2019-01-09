@@ -12,6 +12,7 @@ import org.tumba.gollum.domain.entities.AccountPatch
 import org.tumba.gollum.domain.repository.AccountGroup
 import org.tumba.gollum.domain.repository.GroupQuery
 import org.tumba.gollum.domain.repository.IAccountRepository
+import java.sql.Connection
 
 class SqlAccountRepository(val database: Database) : IAccountRepository {
 
@@ -20,7 +21,7 @@ class SqlAccountRepository(val database: Database) : IAccountRepository {
     }
 
     fun init() {
-        transaction(database) {
+        transaction(Connection.TRANSACTION_SERIALIZABLE, 1, database) {
             addLogger(StdOutSqlLogger)
             SchemaUtils.create(AccountsTable)
         }
