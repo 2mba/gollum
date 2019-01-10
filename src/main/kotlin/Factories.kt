@@ -1,5 +1,7 @@
 package org.tumba.gollum
 
+import com.dslplatform.json.DslJson
+import com.dslplatform.json.runtime.Settings
 import org.jetbrains.exposed.sql.Database
 import org.tumba.gollum.data.mongo.SqlAccountRepository
 import org.tumba.gollum.domain.repository.IAccountRepository
@@ -10,6 +12,13 @@ import java.sql.SQLException
 object Factories {
 
     val accountRepositoryFactory: AccountRepositoryFactory = AccountRepositoryFactory()
+
+    val dslJsonFactory: DslJsonFactory = DslJsonFactory()
+}
+
+class DslJsonFactory {
+
+    fun getDslJson() = DslJson<Any>(Settings.withRuntime<Any>().includeServiceLoader())
 }
 
 class AccountRepositoryFactory {

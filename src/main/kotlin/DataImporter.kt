@@ -1,7 +1,5 @@
 package org.tumba.gollum
 
-import com.dslplatform.json.DslJson
-import com.dslplatform.json.runtime.Settings
 import net.lingala.zip4j.core.ZipFile
 import net.lingala.zip4j.exception.ZipException
 import net.lingala.zip4j.model.FileHeader
@@ -11,7 +9,7 @@ import org.tumba.gollum.domain.repository.IAccountRepository
 
 class DataImporter(private val accountRepository: IAccountRepository, private val path: String) {
     fun import() {
-        val dslJson = DslJson<Any>(Settings.withRuntime<Any>().includeServiceLoader())
+        val dslJson = Factories.dslJsonFactory.getDslJson()
 
         try {
             val zipFile = ZipFile(path)

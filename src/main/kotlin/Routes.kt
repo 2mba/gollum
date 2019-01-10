@@ -1,5 +1,6 @@
 package org.tumba.gollum
 
+import com.dslplatform.json.DslJson
 import domain.repository.FieldCondition
 import domain.repository.validate
 import io.ktor.application.ApplicationCall
@@ -22,7 +23,10 @@ import org.tumba.gollum.domain.entities.validate
 import org.tumba.gollum.domain.repository.IAccountRepository
 
 
-class Routes(private val repository: IAccountRepository) {
+class Routes(
+    private val repository: IAccountRepository,
+    private val dslJson: DslJson<Any> = Factories.dslJsonFactory.getDslJson()
+) {
     fun getRoute(routing: Routing) {
         routing.route("accounts") {
             get("filter") {
@@ -56,7 +60,9 @@ class Routes(private val repository: IAccountRepository) {
                 val limit = limitStr!!.toInt()
 
                 val accounts = repository.filter(fieldConditions, limit)
-                call.respond(AccountList(accounts))
+                val jsonWriter = dslJson.newWriter()
+                dslJson.serialize(jsonWriter, AccountList(accounts))
+                call.respond(jsonWriter.toString())
             }
 //            get("group") {
 //                notImplemented()
