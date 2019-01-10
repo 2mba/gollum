@@ -9,4 +9,4 @@ if [ $status -ne 0 ]; then
 fi
 
 # Start the second process
-java -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -XX:MaxRAMFraction=1 -jar my-application.jar
+java -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -XX:MaxRAMFraction=2 -jar my-application.jar

@@ -12,6 +12,7 @@ import org.litote.kmongo.updateOneById
 import org.tumba.gollum.data.MongoRepository
 import org.tumba.gollum.domain.entities.Account
 import org.tumba.gollum.domain.entities.AccountPatch
+import org.tumba.gollum.domain.entities.LikeInfo
 import org.tumba.gollum.domain.repository.AccountGroup
 import org.tumba.gollum.domain.repository.GroupQuery
 import org.tumba.gollum.domain.repository.IAccountRepository
@@ -19,6 +20,10 @@ import java.time.LocalDate
 
 class MongoAccountRepository(mongoClient: MongoClient, dbName: String, private val now: Long) : IAccountRepository,
     MongoRepository<Account>(mongoClient, dbName) {
+    override fun updateLikes(likes: List<LikeInfo>): Boolean {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
     override fun update(id: Long, accountPatch: AccountPatch): Boolean {
         val update = ArrayList<Bson>()
         if (accountPatch.email != null) {
@@ -75,7 +80,7 @@ class MongoAccountRepository(mongoClient: MongoClient, dbName: String, private v
         return true
     }
 
-    public fun createIndexes() {
+    fun createIndexes() {
         db.getCollection<Account>()
             .ensureIndex(Document("email", 1), IndexOptions().unique(true))
 //        db.getCollection<Account>()

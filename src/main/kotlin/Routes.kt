@@ -16,10 +16,7 @@ import io.ktor.util.filter
 import io.ktor.util.flattenEntries
 import io.ktor.util.pipeline.PipelineContext
 import org.tumba.gollum.data.mongo.MongoAccountRepository
-import org.tumba.gollum.domain.entities.Account
-import org.tumba.gollum.domain.entities.AccountList
-import org.tumba.gollum.domain.entities.AccountPatch
-import org.tumba.gollum.domain.entities.validate
+import org.tumba.gollum.domain.entities.*
 
 
 class Routes(private val repository: MongoAccountRepository) {
@@ -58,20 +55,6 @@ class Routes(private val repository: MongoAccountRepository) {
                 val accounts = repository.filter(fieldConditions, limit)
                 call.respond(AccountList(accounts))
             }
-//            get("group") {
-//                notImplemented()
-//            }
-//            route("{id}") {
-//                get("recommend") {
-//                    notImplemented()
-//                }
-//                get("suggest") {
-//                    notImplemented()
-//                }
-//                post("/") {
-//                    notImplemented()
-//                }
-//            }
             post("new") {
                 val account: Account
 
@@ -102,7 +85,7 @@ class Routes(private val repository: MongoAccountRepository) {
                 }
                 val id = idStr.toLongOrNull()
                 if (id == null) {
-                    call.respond(HttpStatusCode.BadRequest, "{}")
+                    call.respond(HttpStatusCode.NotFound, "{}")
                     return@post
                 }
 
@@ -111,6 +94,11 @@ class Routes(private val repository: MongoAccountRepository) {
                 try {
                     accountPatch = call.receive<AccountPatch>()
                 } catch (ex: Throwable) {
+                    call.respond(HttpStatusCode.BadRequest, "{}")
+                    return@post
+                }
+
+                if (!accountPatch.validate()) {
                     call.respond(HttpStatusCode.BadRequest, "{}")
                     return@post
                 }
@@ -128,9 +116,29 @@ class Routes(private val repository: MongoAccountRepository) {
                 call.respond(HttpStatusCode.Accepted, "{}")
                 return@post
             }
-//            post("likes") {
-//                notImplemented()
-//            }
+            post("likes") {
+                val likeInfoList: LikeInfoList
+
+                try {
+                    likeInfoList = call.receive<LikeInfoList>()
+                } catch (ex: Throwable) {
+                    call.respond(HttpStatusCode.BadRequest, "{}")
+                    return@post
+                }
+
+                if (likeInfoList.likes.isEmpty()) {
+                    call.respond(HttpStatusCode.Accepted, "{}")
+                    return@post
+                }
+
+//                if (!repository.updateLikes(likeInfoList.likes)) {
+//                    call.respond(HttpStatusCode.BadRequest, "{}")
+//                    return@post
+//                }
+
+                call.respond(HttpStatusCode.Accepted, "{}")
+                return@post
+            }
         }
     }
 }

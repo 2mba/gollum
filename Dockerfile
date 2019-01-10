@@ -6,7 +6,7 @@ RUN apt-get update
 RUN apt-get install -y mongodb-org
 RUN mkdir -p /mongodb/db
 
-RUN echo 'mongod --fork --dbpath=/mongodb/db --logpath=/mongodb/mongo.log --wiredTigerCacheSizeGB=0.5 &' >> start_mongo.sh
+RUN echo 'mongod --fork --dbpath=/mongodb/db --logpath=/mongodb/mongo.log --wiredTigerCacheSizeGB=0.25 &' >> start_mongo.sh
 RUN chmod a+x start_mongo.sh
 
 COPY script.sh script.sh
