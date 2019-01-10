@@ -6,10 +6,9 @@ import net.lingala.zip4j.core.ZipFile
 import net.lingala.zip4j.exception.ZipException
 import net.lingala.zip4j.model.FileHeader
 import org.tumba.gollum.domain.entities.AccountList
-import org.tumba.gollum.domain.repository.IAccountRepository
 
 
-class DataImporter(private val accountRepository: IAccountRepository, private val path: String) {
+class DataImporter(private val accountRepository: AccountRepository, private val path: String) {
     fun import() {
         val dslJson = DslJson<Any>(Settings.withRuntime<Any>().includeServiceLoader())
 
@@ -26,7 +25,9 @@ class DataImporter(private val accountRepository: IAccountRepository, private va
                         println("Memory usage. Total: ${Runtime.getRuntime().totalMemory()} Free: ${Runtime.getRuntime().freeMemory()}")
 
                         chunked.forEach {
-                            accountRepository.insert(it)
+                            for (account in it) {
+                                accountRepository.tryInsert(account)
+                            }
                         }
                     }
                 }

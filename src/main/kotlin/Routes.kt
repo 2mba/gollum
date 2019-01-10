@@ -1,7 +1,5 @@
 package org.tumba.gollum
 
-import domain.repository.FieldCondition
-import domain.repository.validate
 import io.ktor.application.ApplicationCall
 import io.ktor.application.call
 import io.ktor.http.HttpStatusCode
@@ -9,69 +7,62 @@ import io.ktor.request.path
 import io.ktor.request.receive
 import io.ktor.response.respond
 import io.ktor.routing.Routing
-import io.ktor.routing.get
 import io.ktor.routing.post
 import io.ktor.routing.route
-import io.ktor.util.filter
-import io.ktor.util.flattenEntries
 import io.ktor.util.pipeline.PipelineContext
-import org.tumba.gollum.data.mongo.MongoAccountRepository
-import org.tumba.gollum.domain.entities.Account
-import org.tumba.gollum.domain.entities.AccountList
-import org.tumba.gollum.domain.entities.AccountPatch
-import org.tumba.gollum.domain.entities.validate
+import org.tumba.gollum.domain.entities.*
+import java.util.*
+import kotlin.collections.HashSet
 
+class AccountRepository {
+    private val ids = HashMap<Long, String>()
+    private val emails = HashSet<String>()
 
-class Routes(private val repository: MongoAccountRepository) {
+    fun tryInsert(account: Account): Boolean {
+        synchronized(this) {
+            if (ids.containsKey(account.id)) return false
+            if (emails.contains(account.email)) return false
+            //        if (account.likes != null){
+            //            if (account.likes.any { !ids.containsKey(it.id) }) {
+            //                return false
+            //            }
+            //        }
+
+            ids[account.id] = account.email
+            emails.add(account.email)
+            return true
+        }
+    }
+
+    fun tryUpdate(id: Long, account: AccountPatch): Boolean {
+        synchronized(this) {
+            if (!ids.containsKey(id)) return false
+            if (account.email != null) {
+                if (emails.contains(account.email))
+                    throw IllegalArgumentException()
+                emails.remove(ids[id])
+                ids[id] = account.email
+                emails.add(account.email)
+            }
+            return true
+        }
+    }
+
+    fun tryUpdateLikes(likes: List<LikeInfo>): Boolean {
+        synchronized(this) {
+            likes.forEach { like ->
+                if (!ids.containsKey(like.likee) || ids.containsKey(like.liker)) {
+                    return false
+                }
+            }
+            return true
+        }
+    }
+}
+
+class Routes(private val repository: AccountRepository) {
     fun getRoute(routing: Routing) {
         routing.route("accounts") {
-            get("filter") {
-                val queryParams = context.request.queryParameters
-                    .filter { param, _ -> param != "limit" && param != "query_id" }
-                    .flattenEntries()
-
-                val fieldConditions: List<FieldCondition>
-
-                try {
-                    fieldConditions = queryParams.map {
-                        val keyParts = it.first.split('_')
-                        if (keyParts.size != 2 || keyParts[0].isEmpty() || keyParts[1].isEmpty()) {
-                            call.respond(HttpStatusCode.BadRequest, "{}")
-                            return@get
-                        }
-                        val condition = FieldCondition(keyParts[0], keyParts[1], it.second)
-                        if (!condition.validate()) {
-                            call.respond(HttpStatusCode.BadRequest, "{}")
-                            return@get
-                        }
-                        condition
-                    }
-                }
-                catch (e: Exception) {
-                    call.respond(HttpStatusCode.BadRequest, "{}")
-                    return@get
-                }
-
-                val limitStr = context.request.queryParameters["limit"]
-                val limit = limitStr!!.toInt()
-
-                val accounts = repository.filter(fieldConditions, limit)
-                call.respond(AccountList(accounts))
-            }
-//            get("group") {
-//                notImplemented()
-//            }
-//            route("{id}") {
-//                get("recommend") {
-//                    notImplemented()
-//                }
-//                get("suggest") {
-//                    notImplemented()
-//                }
-//                post("/") {
-//                    notImplemented()
-//                }
-//            }
             post("new") {
                 val account: Account
 
@@ -86,7 +77,7 @@ class Routes(private val repository: MongoAccountRepository) {
                     return@post
                 }
 
-                if (!repository.insert(account)) {
+                if (!repository.tryInsert(account)) {
                     call.respond(HttpStatusCode.BadRequest, "{}")
                     return@post
                 }
@@ -115,8 +106,13 @@ class Routes(private val repository: MongoAccountRepository) {
                     return@post
                 }
 
+                if (!accountPatch.validate()) {
+                    call.respond(HttpStatusCode.BadRequest, "{}")
+                    return@post
+                }
+
                 try {
-                    if (!repository.update(id, accountPatch)) {
+                    if (!repository.tryUpdate(id, accountPatch)) {
                         call.respond(HttpStatusCode.NotFound, "{}")
                         return@post
                     }
@@ -128,9 +124,30 @@ class Routes(private val repository: MongoAccountRepository) {
                 call.respond(HttpStatusCode.Accepted, "{}")
                 return@post
             }
-//            post("likes") {
-//                notImplemented()
-//            }
+            post("likes") {
+
+                val likeInfoList: LikeInfoList
+
+                try {
+                    likeInfoList = call.receive<LikeInfoList>()
+                } catch (ex: Throwable) {
+                    call.respond(HttpStatusCode.BadRequest, "{}")
+                    return@post
+                }
+
+                if (likeInfoList.likes.isEmpty()) {
+                    call.respond(HttpStatusCode.BadRequest, "{}")
+                    return@post
+                }
+
+                if (!repository.tryUpdateLikes(likeInfoList.likes)) {
+                    call.respond(HttpStatusCode.BadRequest, "{}")
+                    return@post
+                }
+
+                call.respond(HttpStatusCode.Accepted, "{}")
+                return@post
+            }
         }
     }
 }
