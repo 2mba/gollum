@@ -9,6 +9,8 @@ import org.jetbrains.exposed.sql.transactions.transaction
 import org.joda.time.DateTime
 import org.tumba.gollum.domain.entities.Account
 import org.tumba.gollum.domain.entities.AccountPatch
+import org.tumba.gollum.domain.entities.Sex
+import org.tumba.gollum.domain.entities.Status
 import org.tumba.gollum.domain.repository.AccountGroup
 import org.tumba.gollum.domain.repository.GroupQuery
 import org.tumba.gollum.domain.repository.IAccountRepository
@@ -32,7 +34,7 @@ class SqlAccountRepository(val database: Database) : IAccountRepository {
     }
 
     override fun insert(accounts: List<Account>) {
-        transaction(database) {
+        transaction(Connection.TRANSACTION_SERIALIZABLE, 1, database) {
             AccountsTable.batchInsert(accounts.toList(), ignore = false) { account ->
                 AccountsTable.toDbEntity(this, account)
             }
@@ -48,14 +50,23 @@ class SqlAccountRepository(val database: Database) : IAccountRepository {
     }
 
     override fun filter(conditions: List<FieldCondition>, limit: Int): List<Account> {
-        return transaction(database) {
+        val conditionsMap = HashMap<String, FieldCondition>().apply {
+            conditions.forEach { set(it.fieldName, it) }
+        }
+        return transaction(Connection.TRANSACTION_SERIALIZABLE, 1, database) {
             AccountsTable.select {
                 whereStatementBuilder {
                     conditionsOf(
-                        /*condition(AccountsTable.firstName, query.firstName),
-                        condition(AccountsTable.surName, query.surName),
-                        condition(AccountsTable.sex, query.sex?.convert { SexDbMapper.toDbValue(it) }),
-                        condition(AccountsTable.status, query.status?.convert { StatusDbMapper.toDbValue(it) })*/
+                        condition(AccountsTable.firstName, conditionsMap),
+                        condition(AccountsTable.surName, conditionsMap),
+                        condition(AccountsTable.sex, conditionsMap) { value ->
+                            SexDbMapper.toDbValue(when (value) {
+                                Sex.MALE.value -> Sex.MALE
+                                Sex.FEMALE.value -> Sex.FEMALE
+                                else -> throw IllegalArgumentException("Illegal sex value: $value")
+                            })
+                        }
+                        //condition(AccountsTable.status, query.status?.convert { StatusDbMapper.toDbValue(it) })
                     )
                 } ?: throw IllegalStateException("!!!")
             }.asSequence().map { row -> row.toAccount() }.toList()
@@ -86,16 +97,21 @@ object WhereStatementBuilder {
         return op
     }
 
-    fun <T> SqlExpressionBuilder.condition(column: Column<T?>, condition: FieldCondition?): Op<Boolean>? {
-        condition ?: return null
-        return TODO() /* when (condition) {
-            is FieldCondition.Equal -> column eq condition.value
-            is FieldCondition.NotEqual -> column neq condition.value
-            is FieldCondition.LessThen -> TODO()
-            is FieldCondition.GreaterThen -> TODO()
-            is FieldCondition.Any -> column inList condition.values
-            is FieldCondition.Contains -> TODO()
-        } */
+    fun <T> SqlExpressionBuilder.condition(column: Column<T?>, conditions: Map<String, FieldCondition>, mapper: (String) -> T): Op<Boolean>? {
+        val condition = conditions[column.name] ?: return null
+        return when (condition.predicate) {
+            "eq" -> column eq mapper.invoke(condition.value)
+            "neq" -> column neq mapper.invoke(condition.value)
+            "ltn" -> TODO()
+            "gtn" -> TODO()
+            // is FieldCondition.Any -> column inList condition.values
+            // is FieldCondition.Contains -> TODO()
+            else -> throw IllegalArgumentException("Illegal predicate: ${condition.predicate}")
+        }
+    }
+
+    fun SqlExpressionBuilder.condition(column: Column<String?>, conditions: Map<String, FieldCondition>): Op<Boolean>? {
+        return condition(column, conditions) { it }
     }
 }
 
@@ -134,9 +150,9 @@ private fun AccountsTable.toDbEntity(insertStatement: InsertStatement<*>, accoun
     insertStatement[surName] = account.sname
     insertStatement[email] = account.email
     //insertStatement[interests] = account.interests
-    //insertStatement[status] = StatusDbMapper.toDbValue(account.status)
+    insertStatement[status] = StatusDbMapper.toDbValue(account.status)
     //insertStatement[premium] = account.premium
-    //insertStatement[sex] = SexDbMapper.toDbValue(account.sex)
+    insertStatement[sex] = SexDbMapper.toDbValue(account.sex)
     insertStatement[phone] = account.phone
     //insertStatement[likes] = account.likes
     insertStatement[birth] = DateTime(account.birth)
@@ -152,9 +168,9 @@ private fun ResultRow.toAccount(): Account {
         sname = this[AccountsTable.surName],
         email = this[AccountsTable.email],
         interests = null, //this[AccountsTable.interests],
-        status = "",//StatusDbMapper.fromDbValue(this[AccountsTable.status]) ?: throwError("status"),
+        status = StatusDbMapper.fromDbValue(this[AccountsTable.status]) ?: throwError("status"),
         premium = null, // this[AccountsTable.premium],
-        sex = "", // SexDbMapper.fromDbValue(this[AccountsTable.sex]) ?: throwError("sex"),
+        sex = SexDbMapper.fromDbValue(this[AccountsTable.sex]) ?: throwError("sex"),
         phone = this[AccountsTable.phone],
         likes = null, //this[AccountsTable.likes],
         birth = this[AccountsTable.birth]?.millis ?: throwError("birth"),
@@ -164,11 +180,13 @@ private fun ResultRow.toAccount(): Account {
     )
 }
 
-// private object SexDbMapper : EnumDbMapper<Sex>(Sex.values())
+//private fun <T : Enum<T>> convertCondition(string: String, blocK: ()): T
 
-// private object StatusDbMapper : EnumDbMapper<Status>(Status.values())
+ private object SexDbMapper : EnumDbMapper<Sex>(Sex.values())
 
-private open class DbMapper<T : Enum<T>>(private val values: Array<T>) {
+ private object StatusDbMapper : EnumDbMapper<Status>(Status.values())
+
+private open class EnumDbMapper<T : Enum<T>>(private val values: Array<T>) {
 
     fun toDbValue(t: T): Int = t.ordinal
 

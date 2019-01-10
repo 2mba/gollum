@@ -1,6 +1,7 @@
 package org.tumba.gollum.domain.entities
 
 import com.dslplatform.json.CompiledJson
+import com.dslplatform.json.JsonValue
 import java.time.LocalDate
 
 @CompiledJson
@@ -16,18 +17,32 @@ data class Like(
 )
 
 @CompiledJson
+enum class Status(@get:JsonValue val value: String) {
+    FREE("свободны"),
+    BUSY("заняты"),
+    COMPLICATED("всё сложно")
+}
+
+
+@CompiledJson
+enum class Sex(@get:JsonValue val value: String) {
+    MALE("m"),
+    FEMALE("f")
+}
+
+@CompiledJson
 data class Account(
     val id: Long,
     val email: String,
     val fname: String?,
     val sname: String?,
     val phone: String?,
-    val sex: String?,
+    val sex: Sex,
     val birth: Long?,
     val country: String?,
     val city: String?,
     val joined: Long?,
-    val status: String?,
+    val status: Status,
     val interests: ArrayList<String>?,
     val premium: Premium?,
     val likes: ArrayList<Like>?
@@ -61,7 +76,7 @@ fun Account.validate(): Boolean {
     if (sname != null && (sname.isEmpty() || sname.length > 50)) return false
     if (phone != null && (phone.isEmpty() || phone.length > 16)) return false
     if (sex == null) return false
-    if (sex != "m" && sex != "f") return false
+    //if (sex != "m" && sex != "f") return false
 
     if (birth == null || birth < minBirth || birth > maxBirth) return false
     if (country != null && (country.isEmpty() || country.length > 50)) return false
@@ -69,7 +84,7 @@ fun Account.validate(): Boolean {
 
     if (joined == null || joined < minJoined || joined > maxJoined) return false
     if (status == null) return false
-    if (status != "свободны" && status != "заняты" && status != "всё сложно") return false
+    //if (status != "свободны" && status != "заняты" && status != "всё сложно") return false
 
     if (interests == null) return false // TODO: ?
     if (interests.any { it.isEmpty() || it.length > 100 }) return false

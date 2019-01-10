@@ -15,7 +15,7 @@ fun main(args: Array<String>) {
     val dbHostname = "localhost"
     val dbName = "contest"
 
-    val dataPath = "/tmp/data/data.zip"//"C:\\temp\\data.zip"//"/tmp/data/data.zip"
+    val dataPath = "data/data.zip"//"C:\\temp\\data.zip"//"/tmp/data/data.zip"
     //val optionsPath = "/tmp/data/options.txt"//"C:\\temp\\options.txt" //"/tmp/data/options.txt"
     //val optionsLines = File(optionsPath).readLines()
     //val optionsNow = optionsLines[0].trim().toLong()
