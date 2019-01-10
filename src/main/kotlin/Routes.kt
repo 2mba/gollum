@@ -49,14 +49,15 @@ class AccountRepository {
     }
 
     fun tryUpdateLikes(likes: List<LikeInfo>): Boolean {
-        synchronized(this) {
-            likes.forEach { like ->
-                if (!ids.containsKey(like.likee) || ids.containsKey(like.liker)) {
-                    return false
-                }
-            }
-            return true
-        }
+        return true
+//        synchronized(this) {
+//            likes.forEach { like ->
+//                if (!ids.containsKey(like.likee) || ids.containsKey(like.liker)) {
+//                    return false
+//                }
+//            }
+//            return true
+//        }
     }
 }
 
@@ -93,7 +94,7 @@ class Routes(private val repository: AccountRepository) {
                 }
                 val id = idStr.toLongOrNull()
                 if (id == null) {
-                    call.respond(HttpStatusCode.BadRequest, "{}")
+                    call.respond(HttpStatusCode.NotFound)
                     return@post
                 }
 
