@@ -37,15 +37,20 @@ data class Account(
     val fname: String?,
     val sname: String?,
     val phone: String?,
-    val sex: Sex,
+    val sex: Sex?,
     val birth: Long?,
     val country: String?,
     val city: String?,
     val joined: Long?,
-    val status: Status,
+    val status: Status?,
     val interests: ArrayList<String>?,
     val premium: Premium?,
     val likes: ArrayList<Like>?
+)
+
+@CompiledJson
+data class AccountList(
+    val accounts: List<Account>
 )
 
 data class AccountPatch(

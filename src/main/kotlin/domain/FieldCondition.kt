@@ -1,4 +1,4 @@
-package domain.repository
+package domain
 
 
 data class FieldCondition(

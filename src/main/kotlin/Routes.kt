@@ -1,12 +1,10 @@
 package org.tumba.gollum
 
 import com.dslplatform.json.DslJson
-import domain.repository.FieldCondition
-import domain.repository.validate
-import io.ktor.application.ApplicationCall
+import domain.FieldCondition
+import domain.validate
 import io.ktor.application.call
 import io.ktor.http.HttpStatusCode
-import io.ktor.request.path
 import io.ktor.request.receive
 import io.ktor.response.respond
 import io.ktor.routing.Routing
@@ -15,7 +13,6 @@ import io.ktor.routing.post
 import io.ktor.routing.route
 import io.ktor.util.filter
 import io.ktor.util.flattenEntries
-import io.ktor.util.pipeline.PipelineContext
 import org.tumba.gollum.domain.entities.Account
 import org.tumba.gollum.domain.entities.AccountList
 import org.tumba.gollum.domain.entities.AccountPatch
@@ -25,7 +22,7 @@ import org.tumba.gollum.domain.repository.IAccountRepository
 
 class Routes(
     private val repository: IAccountRepository,
-    private val dslJson: DslJson<Any> = Factories.dslJsonFactory.getDslJson()
+    private val dslJson: DslJson<Any>
 ) {
     fun getRoute(routing: Routing) {
         routing.route("accounts") {
@@ -64,20 +61,7 @@ class Routes(
                 dslJson.serialize(jsonWriter, AccountList(accounts))
                 call.respond(jsonWriter.toString())
             }
-//            get("group") {
-//                notImplemented()
-//            }
-//            route("{id}") {
-//                get("recommend") {
-//                    notImplemented()
-//                }
-//                get("suggest") {
-//                    notImplemented()
-//                }
-//                post("/") {
-//                    notImplemented()
-//                }
-//            }
+
             post("new") {
                 val account: Account
 
@@ -100,6 +84,7 @@ class Routes(
                 call.respond(HttpStatusCode.Created, "{}")
                 return@post
             }
+
             post("{id}") {
                 val idStr = call.parameters["id"]
                 if (idStr == null) {
@@ -134,13 +119,6 @@ class Routes(
                 call.respond(HttpStatusCode.Accepted, "{}")
                 return@post
             }
-//            post("likes") {
-//                notImplemented()
-//            }
         }
     }
-}
-
-private suspend fun PipelineContext<Unit, ApplicationCall>.notImplemented() {
-    call.respond("Not implemented: ${this.call.request.path()}")
 }
