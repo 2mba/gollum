@@ -21,21 +21,22 @@ fun main(args: Array<String>) {
     val optionsLines = File(optionsPath).readLines()
     val optionsNow = optionsLines[0].trim().toLong()
 
+    val inMemoryRepository = InMemoryRepository()
     val accountRepository = createAccountRepository(optionsNow)
     val dslJson = DslJson<Any>(Settings.withRuntime<Any>().includeServiceLoader().skipDefaultValues(true))
 
-    val dataImporter = AccountsImporter(accountRepository, dslJson, dataPath)
+    val dataImporter = AccountsImporter(accountRepository, inMemoryRepository, dslJson, dataPath)
 
-    //measureTimeMillis { dataImporter.import() }.also { println("Import $it ms") }
+    measureTimeMillis { dataImporter.import() }.also { println("Import $it ms") }
 
-    val routes = Routes(accountRepository, dslJson)
+    val routes = Routes(accountRepository, inMemoryRepository, dslJson)
 
     embeddedServer(Netty, port) {
         routing { routes.getRoute(this) }
     }.start(wait = true)
 }
 
-const val databasePath = "/Users/obairka/Projects/gollum/"
+const val databasePath = "/"//"/Users/obairka/Projects/gollum/"
 const val databaseConnectionString = "jdbc:sqlite:${databasePath}sqlite/db/accounts"
 
 fun createAccountRepository(now: Long): IAccountRepository {

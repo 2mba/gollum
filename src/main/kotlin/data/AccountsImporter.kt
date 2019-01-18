@@ -8,7 +8,9 @@ import org.tumba.gollum.domain.entities.AccountList
 import org.tumba.gollum.domain.repository.IAccountRepository
 
 
-class AccountsImporter(private val accountRepository: IAccountRepository, private val dslJson: DslJson<Any>, private val path: String) {
+class AccountsImporter(private val accountRepository: IAccountRepository,
+                       private val inMemoryRepository: InMemoryRepository,
+                       private val dslJson: DslJson<Any>, private val path: String) {
     fun import() {
         try {
             val zipFile = ZipFile(path)
@@ -19,6 +21,7 @@ class AccountsImporter(private val accountRepository: IAccountRepository, privat
                     zipFile.getInputStream(header).use { stream ->
                         val accountList = dslJson.deserialize(AccountList::class.java, stream)
                         accountRepository.insert(accountList.accounts)
+                        accountList.accounts.forEach { inMemoryRepository.tryInsert(it) }
                     }
                 }
         } catch (e: ZipException) {

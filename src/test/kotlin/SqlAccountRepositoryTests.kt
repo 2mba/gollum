@@ -1,7 +1,7 @@
 import org.amshove.kluent.shouldBe
 import org.junit.jupiter.api.Test
 
-class SimpleTest {
+class SqlAccountRepositoryTests {
 
     @Test
     fun test() {

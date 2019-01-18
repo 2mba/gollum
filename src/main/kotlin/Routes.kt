@@ -13,15 +13,41 @@ import io.ktor.routing.post
 import io.ktor.routing.route
 import io.ktor.util.filter
 import io.ktor.util.flattenEntries
-import org.tumba.gollum.domain.entities.Account
-import org.tumba.gollum.domain.entities.AccountList
-import org.tumba.gollum.domain.entities.AccountPatch
-import org.tumba.gollum.domain.entities.validate
+import org.tumba.gollum.domain.entities.*
 import org.tumba.gollum.domain.repository.IAccountRepository
 
+class InMemoryRepository {
+    private val ids = HashMap<Long, String>()
+    private val emails = HashSet<String>()
+
+    fun tryInsert(account: Account): Boolean {
+        synchronized(this) {
+            if (ids.containsKey(account.id)) return false
+            if (emails.contains(account.email)) return false
+            ids[account.id] = account.email
+            emails.add(account.email)
+            return true
+        }
+    }
+
+    fun tryUpdate(id: Long, account: AccountPatch): Boolean {
+        synchronized(this) {
+            if (!ids.containsKey(id)) return false
+            if (account.email != null) {
+                if (emails.contains(account.email))
+                    throw IllegalArgumentException()
+                emails.remove(ids[id])
+                ids[id] = account.email
+                emails.add(account.email)
+            }
+            return true
+        }
+    }
+}
 
 class Routes(
     private val repository: IAccountRepository,
+    private val inMemoryRepository: InMemoryRepository,
     private val dslJson: DslJson<Any>
 ) {
     fun getRoute(routing: Routing) {
@@ -76,7 +102,7 @@ class Routes(
                     return@post
                 }
 
-                if (!repository.insert(account)) {
+                if (!inMemoryRepository.tryInsert(account)) {
                     call.respond(HttpStatusCode.BadRequest, "{}")
                     return@post
                 }
@@ -106,8 +132,13 @@ class Routes(
                     return@post
                 }
 
+                if (!accountPatch.validate()) {
+                    call.respond(HttpStatusCode.BadRequest, "{}")
+                    return@post
+                }
+
                 try {
-                    if (!repository.update(id, accountPatch)) {
+                    if (!inMemoryRepository.tryUpdate(id, accountPatch)) {
                         call.respond(HttpStatusCode.NotFound, "{}")
                         return@post
                     }
@@ -119,6 +150,30 @@ class Routes(
                 call.respond(HttpStatusCode.Accepted, "{}")
                 return@post
             }
+            post("likes") {
+                val likeInfoList: LikeInfoList
+
+                try {
+                    likeInfoList = call.receive<LikeInfoList>()
+                } catch (ex: Throwable) {
+                    call.respond(HttpStatusCode.BadRequest, "{}")
+                    return@post
+                }
+
+                if (likeInfoList.likes.isEmpty()) {
+                    call.respond(HttpStatusCode.Accepted, "{}")
+                    return@post
+                }
+
+//                if (!repository.updateLikes(likeInfoList.likes)) {
+//                    call.respond(HttpStatusCode.BadRequest, "{}")
+//                    return@post
+//                }
+
+                call.respond(HttpStatusCode.Accepted, "{}")
+                return@post
+            }
+
         }
     }
 }
