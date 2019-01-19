@@ -97,7 +97,6 @@ class InMemoryRepository {
 
         return ids
             .sortedByDescending { it }
-            .drop(limit)
     }
 }
 
