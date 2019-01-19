@@ -11,5 +11,5 @@ interface IAccountRepository {
 
     fun update(id: Long, accountPatch: AccountPatch): Boolean
 
-    fun filter(conditions: List<FieldCondition>, limit: Int): List<Account>
+    fun filter(conditions: List<FieldCondition>, limit: Int, minId: Long?, maxId: Long?): List<Account>
 }

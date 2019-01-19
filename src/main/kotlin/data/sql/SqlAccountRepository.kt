@@ -13,10 +13,7 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.less
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.neq
 import org.jetbrains.exposed.sql.statements.InsertStatement
 import org.jetbrains.exposed.sql.transactions.transaction
-import org.tumba.gollum.domain.entities.Account
-import org.tumba.gollum.domain.entities.AccountPatch
-import org.tumba.gollum.domain.entities.Sex
-import org.tumba.gollum.domain.entities.Status
+import org.tumba.gollum.domain.entities.*
 import org.tumba.gollum.domain.repository.IAccountRepository
 import java.sql.Connection
 import java.time.LocalDate
@@ -58,7 +55,7 @@ class SqlAccountRepository(val database: Database, val timestamp: Long) : IAccou
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
-    override fun filter(conditions: List<FieldCondition>, limit: Int): List<Account> {
+    override fun filter(conditions: List<FieldCondition>, limit: Int, minId: Long?, maxId: Long?): List<Account> {
         val stringColumns = hashMapOf(
             Pair("fname", AccountsTable.fname),
             Pair("sname", AccountsTable.sname),
@@ -69,8 +66,10 @@ class SqlAccountRepository(val database: Database, val timestamp: Long) : IAccou
         val usedColumns = ArrayList<Column<*>>()
         usedColumns.add(AccountsTable.id)
         usedColumns.add(AccountsTable.email)
-        val filters = conditions.map { condition ->
-            when (condition.fieldName) {
+        val filters = conditions
+            .filter { c -> c.fieldName != "interests" }
+            .map { condition ->
+                when (condition.fieldName) {
                 "fname", "sname", "phone", "country", "city" -> {
                     val column = stringColumns[condition.fieldName]!!
                     usedColumns.add(column)
@@ -138,10 +137,32 @@ class SqlAccountRepository(val database: Database, val timestamp: Long) : IAccou
                         }
                         else -> illegalCondition(condition)
                     }
-
+                }
+                "premium" -> {
+                    usedColumns.add(AccountsTable.premium_start)
+                    usedColumns.add(AccountsTable.premium_finish)
+                    when (condition.predicate) {
+                        "null" ->
+                            if (condition.value == "0")
+                                AccountsTable.premium_start.isNotNull()
+                            else
+                                AccountsTable.premium_start.isNull()
+                        "now" -> {
+                            (AccountsTable.premium_start less timestamp.inc()) and (AccountsTable.premium_finish greater timestamp.dec())
+                        }
+                        else -> illegalCondition(condition)
+                    }
                 }
                 else -> illegalCondition(condition)
             }
+        }
+            .toMutableList()
+
+        if (minId != null) {
+            filters.add(AccountsTable.id.greater(EntityID(minId.toInt().dec(), AccountsTable)))
+        }
+        if (maxId != null) {
+            filters.add(AccountsTable.id.less(EntityID(maxId.toInt().inc(), AccountsTable)))
         }
 
         return transaction(Connection.TRANSACTION_SERIALIZABLE, 1, database) {
@@ -156,7 +177,7 @@ class SqlAccountRepository(val database: Database, val timestamp: Long) : IAccou
             } else {
                 AccountsTable.selectAll()
                     .adjustSlice {
-                        slice(AccountsTable.id, AccountsTable.email, AccountsTable.fname)
+                        slice(AccountsTable.id, AccountsTable.email)
                     }
             }
 
@@ -176,7 +197,8 @@ private object AccountsTable : IntIdTable() {
     val email = varchar("email", 100)
     //val interests = varchar("interests", 50).nullable()
     val status = integer("status").nullable()
-    //val premium = long("premium").nullable() // todo
+    val premium_start = long("premium_start").nullable()
+    val premium_finish = long("premium_finish").nullable()
     val sex = integer("sex").nullable()
     val phone = varchar("phone", 50).nullable()
     //val likes = varchar("likes", 50).nullable()
@@ -193,7 +215,8 @@ private fun AccountsTable.toDbEntity(insertStatement: InsertStatement<*>, accoun
     insertStatement[email] = account.email
     //insertStatement[interests] = account.interests
     insertStatement[status] = StatusDbMapper.toDbValue(account.status!!)
-    //insertStatement[premium] = account.premium
+    insertStatement[premium_start] = if (account.premium == null) null else account.premium.start
+    insertStatement[premium_finish] = if (account.premium == null) null else account.premium.finish
     insertStatement[sex] = SexDbMapper.toDbValue(account.sex!!)
     insertStatement[phone] = account.phone
     //insertStatement[likes] = account.likes
@@ -211,7 +234,7 @@ private fun ResultRow.toAccount(): Account {
         email = this[AccountsTable.email],
         interests = null, //this[AccountsTable.interests],
         status = if (this.hasValue(AccountsTable.status)) StatusDbMapper.fromDbValue(this[AccountsTable.status]) else null,
-        premium = null, // this[AccountsTable.premium],
+        premium = if (this.hasValue(AccountsTable.premium_start) && this[AccountsTable.premium_start] != null) Premium(this[AccountsTable.premium_start]!!, this[AccountsTable.premium_finish]!!) else null, // this[AccountsTable.premium],
         sex = if (this.hasValue(AccountsTable.sex)) SexDbMapper.fromDbValue(this[AccountsTable.sex]) else null,
         phone = if (this.hasValue(AccountsTable.phone)) this[AccountsTable.phone] else null,
         likes = null, //this[AccountsTable.likes],

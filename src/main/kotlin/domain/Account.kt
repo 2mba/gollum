@@ -94,7 +94,7 @@ fun Account.validate(): Boolean {
     if (sname != null && (sname.isEmpty() || sname.length > 50)) return false
     if (phone != null && (phone.isEmpty() || phone.length > 16)) return false
     if (sex == null) return false
-    //if (sex != "m" && sex != "f") return false
+    //if (sex.value != "m" && sex.value != "f") return false
 
     if (birth == null || birth < minBirth || birth > maxBirth) return false
     if (country != null && (country.isEmpty() || country.length > 50)) return false
@@ -102,10 +102,9 @@ fun Account.validate(): Boolean {
 
     if (joined == null || joined < minJoined || joined > maxJoined) return false
     if (status == null) return false
-    //if (status != "свободны" && status != "заняты" && status != "всё сложно") return false
+    //if (status.value != "свободны" && status.value != "заняты" && status.value != "всё сложно") return false
 
-    if (interests == null) return false // TODO: ?
-    if (interests.any { it.isEmpty() || it.length > 100 }) return false
+    if (interests != null && interests.any { it.isEmpty() || it.length > 100 }) return false
 
     if (premium != null && premium.start < minPremium) return false
 

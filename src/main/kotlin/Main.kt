@@ -2,6 +2,8 @@ package org.tumba.gollum
 
 import com.dslplatform.json.DslJson
 import com.dslplatform.json.runtime.Settings
+import io.ktor.application.install
+import io.ktor.ratelimits.RateLimits
 import io.ktor.routing.routing
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
@@ -32,6 +34,7 @@ fun main(args: Array<String>) {
     val routes = Routes(accountRepository, inMemoryRepository, dslJson)
 
     embeddedServer(Netty, port) {
+        install(RateLimits)
         routing { routes.getRoute(this) }
     }.start(wait = true)
 }
