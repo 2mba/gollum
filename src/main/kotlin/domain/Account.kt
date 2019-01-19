@@ -89,7 +89,7 @@ val maxJoined = LocalDate.of(2018, 1, 1).toEpochDay() * 60 * 60 * 24
 val minPremium = LocalDate.of(2018, 1, 1).toEpochDay() * 60 * 60 * 24
 
 fun Account.validate(): Boolean {
-    if (email.isEmpty() || email.length > 100) return false
+    if (email.isEmpty() || email.length > 100 || !email.contains('@')) return false
     if (fname != null && (fname.isEmpty() || fname.length > 50)) return false
     if (sname != null && (sname.isEmpty() || sname.length > 50)) return false
     if (phone != null && (phone.isEmpty() || phone.length > 16)) return false
@@ -114,7 +114,7 @@ fun Account.validate(): Boolean {
 
 fun AccountPatch.validate(): Boolean {
     if (email != null)
-        if (email.isEmpty() || email.length > 100) return false
+        if (email.isEmpty() || email.length > 100 || !email.contains('@')) return false
 
     if (fname != null && (fname.isEmpty() || fname.length > 50)) return false
     if (sname != null && (sname.isEmpty() || sname.length > 50)) return false
