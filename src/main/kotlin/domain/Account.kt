@@ -26,8 +26,8 @@ enum class Status(@get:JsonValue val value: String) {
 
 @CompiledJson
 enum class Sex(@get:JsonValue val value: String) {
-    MALE("m"),
-    FEMALE("f")
+    FEMALE("f"),
+    MALE("m")
 }
 
 @CompiledJson
@@ -55,8 +55,8 @@ data class AccountList(
 
 @CompiledJson
 data class Group(
-    val sex: String?,
-    val status: String?,
+    val sex: Sex?,
+    val status: Status?,
     val country: String?,
     val city: String?,
     val count: Int

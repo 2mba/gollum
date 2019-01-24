@@ -38,7 +38,7 @@ fun main(args: Array<String>) {
     }.start(wait = true)
 }
 
-const val databasePath = "/Users/obairka/Projects/gollum/"
+const val databasePath = "/"//"/Users/obairka/Projects/gollum/"
 const val databaseConnectionString = "jdbc:sqlite:${databasePath}sqlite/db/accounts"
 
 fun createAccountRepository(now: Long): IAccountRepository {

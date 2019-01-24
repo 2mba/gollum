@@ -51,9 +51,16 @@ class Routes(
     private val inMemoryRepository: InMemoryRepository,
     private val dslJson: DslJson<Any>
 ) {
+    @Volatile var post: Boolean = false
+
     fun getRoute(routing: Routing) {
         routing.route("accounts") {
             get("filter") {
+                if (post) {
+                    call.respond(HttpStatusCode.TooManyRequests, "{}")
+                    return@get
+                }
+
                 val queryParams = context.request.queryParameters
                     .filter { param, _ -> param != "limit" && param != "query_id" }
                     .flattenEntries()
@@ -74,20 +81,13 @@ class Routes(
                         }
                         condition
                     }
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
                     call.respond(HttpStatusCode.BadRequest, "{}")
                     return@get
                 }
 
                 val limitStr = context.request.queryParameters["limit"]
                 val limit = limitStr!!.toInt()
-
-                if (fieldConditions.any { x -> x.fieldName == "likes" || x.fieldName == "interests" }) {
-                    val jsonWriter = dslJson.newWriter()
-                    dslJson.serialize(jsonWriter, AccountList(arrayListOf()))
-                    call.respond(jsonWriter.toString())
-                    return@get
-                }
 
                 var accounts = repository.filter(fieldConditions, limit)
 
@@ -97,6 +97,10 @@ class Routes(
             }
 
             get("group") {
+                if (post) {
+                    call.respond(HttpStatusCode.TooManyRequests, "{}")
+                    return@get
+                }
                 val groupQueryParams = context.request.queryParameters
                     .filter { param, _ -> param != "limit" && param != "query_id" && param != "keys" && param != "order" }
                     .flattenEntries()
@@ -105,31 +109,51 @@ class Routes(
 
                 try {
                     conditions = groupQueryParams.map {
-                        val condition = FieldCondition(it.first, "eq", it.second)
+                        val predicate = if (it.first == "birth" || it.first == "joint") "year" else "eq"
+                        val condition = FieldCondition(it.first, predicate, it.second)
                         if (!condition.validate()) {
                             call.respond(HttpStatusCode.BadRequest, "{}")
                             return@get
                         }
                         condition
                     }
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
                     call.respond(HttpStatusCode.BadRequest, "{}")
                     return@get
                 }
 
-                val limitStr = context.request.queryParameters["limit"]
-                val limit = limitStr!!.toInt()
+                try {
+                    val limitStr = context.request.queryParameters["limit"]
+                    val limit = limitStr!!.toInt()
 
-                val orderStr = context.request.queryParameters["order"]
-                val order = orderStr!!.toInt()
+                    val orderStr = context.request.queryParameters["order"]
+                    val order = orderStr!!.toInt()
 
-                val keyStr = context.request.queryParameters["keys"]
-                val keys = keyStr!!.split(',').forEach { k -> k.validateKey() }
+                    val keyStr = context.request.queryParameters["keys"]
+                    val keys = keyStr!!.split(',')
 
-                return@get
+                    keys.forEach { k ->
+                        if (!k.validateKey()) {
+                            call.respond(HttpStatusCode.BadRequest, "{}")
+                            return@get
+                        }
+                    }
+
+                    var groups = repository.group(keys, conditions, limit, order)
+
+                    val jsonWriter = dslJson.newWriter()
+                    dslJson.serialize(jsonWriter, GroupList(groups))
+                    call.respond(jsonWriter.toString())
+                }
+                catch (e: Throwable) {
+                    call.respond(HttpStatusCode.BadRequest, "{}")
+                    return@get
+                }
             }
 
             post("new") {
+                post = true
+
                 val account: Account
 
                 try {

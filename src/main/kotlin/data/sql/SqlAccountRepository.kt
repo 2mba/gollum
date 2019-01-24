@@ -66,17 +66,15 @@ class SqlAccountRepository(val database: Database, val timestamp: Long) : IAccou
         return transaction(Connection.TRANSACTION_SERIALIZABLE, 1, database) {
 
             val query = if (filters.isNotEmpty()) {
-                AccountsTable.select {
+                AccountsTable
+                    .slice(usedColumns)
+                    .select {
                         combineFilters(filters)
                     }
-                    .adjustSlice {
-                        slice(usedColumns)
-                    }
             } else {
-                AccountsTable.selectAll()
-                    .adjustSlice {
-                        slice(AccountsTable.id, AccountsTable.email)
-                    }
+                AccountsTable
+                    .slice(AccountsTable.id, AccountsTable.email)
+                    .selectAll()
             }
 
             query
@@ -89,7 +87,7 @@ class SqlAccountRepository(val database: Database, val timestamp: Long) : IAccou
     }
 
     override fun group(keys: List<String>, conditions: List<FieldCondition>, limit: Int, order: Int): List<Group> {
-        val (usedColumns, filters) = createFilters(conditions)
+        val (_, filters) = createFilters(conditions)
         val groupBy = keys.map {
             when (it) {
                 "status" -> AccountsTable.status
@@ -100,13 +98,35 @@ class SqlAccountRepository(val database: Database, val timestamp: Long) : IAccou
             }
         }.toTypedArray()
 
-        transaction(Connection.TRANSACTION_SERIALIZABLE, 1, database) {
-            AccountsTable.selectAll().groupBy(*groupBy)
+        return transaction(Connection.TRANSACTION_SERIALIZABLE, 1, database) {
+
+            val query = if (filters.isNotEmpty()) {
+                AccountsTable
+                    .slice(*groupBy, AccountsTable.id.count())
+                    .select {
+                        combineFilters(filters)
+                    }
+            } else {
+                AccountsTable
+                    .slice(*groupBy, AccountsTable.id.count())
+                    .selectAll()
+            }
+            val isAsc = order == 1
+            val orderBy = groupBy
+                .map { Pair(it, isAsc) }
+                .toTypedArray()
+
+            query
+                .groupBy(*groupBy)
+                .orderBy(Pair(AccountsTable.id.count(), isAsc), *orderBy)
+                .limit(limit)
+                .asSequence()
+                .map { r -> r.toGroup() }
+                .toList()
         }
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
-    private fun createFilters(conditions: List<FieldCondition>): Pair<ArrayList<Column<*>>, List<Op<Boolean>>> {
+    private fun createFilters(conditions: List<FieldCondition>): Pair<List<Column<*>>, List<Op<Boolean>>> {
         // todo: move to static
         val stringColumns = hashMapOf(
             Pair("fname", AccountsTable.fname),
@@ -160,7 +180,7 @@ class SqlAccountRepository(val database: Database, val timestamp: Long) : IAccou
                     "email" -> {
                         val column = AccountsTable.email
                         when (condition.predicate) {
-                            "domain" -> LikeOp(column, QueryParameter("%@${condition.value}", column.columnType))
+                            "domain" -> AccountsTable.email_domain eq condition.value
                             "lt" -> column less condition.value
                             "gt" -> column greater condition.value
                             else -> illegalCondition(condition)
@@ -223,6 +243,7 @@ private object AccountsTable : IntIdTable() {
     val fname = varchar("fname", 50).nullable()
     val sname = varchar("sname", 50).nullable()
     val email = varchar("email", 100)
+    val email_domain = varchar("email_domain", 100)
     //val interests = varchar("interests", 50).nullable()
     val status = integer("status").nullable()
     val premium_start = long("premium_start").nullable()
@@ -241,6 +262,7 @@ private fun AccountsTable.toDbEntity(insertStatement: InsertStatement<*>, accoun
     insertStatement[fname] = account.fname
     insertStatement[sname] = account.sname
     insertStatement[email] = account.email
+    insertStatement[email_domain] = account.email.split('@')[1]
     //insertStatement[interests] = account.interests
     insertStatement[status] = StatusDbMapper.toDbValue(account.status!!)
     insertStatement[premium_start] = if (account.premium == null) null else account.premium.start
@@ -270,6 +292,17 @@ private fun ResultRow.toAccount(): Account {
         city = if (this.hasValue(AccountsTable.city)) this[AccountsTable.city] else null,
         country = if (this.hasValue(AccountsTable.country)) this[AccountsTable.country] else null,
         joined = if (this.hasValue(AccountsTable.joined)) this[AccountsTable.joined] else null
+    )
+}
+
+
+private fun ResultRow.toGroup(): Group {
+    return Group(
+        sex = if (this.hasValue(AccountsTable.sex)) SexDbMapper.fromDbValue(this[AccountsTable.sex]) else null,
+        status = if (this.hasValue(AccountsTable.status)) StatusDbMapper.fromDbValue(this[AccountsTable.status]) else null,
+        country = if (this.hasValue(AccountsTable.country)) this[AccountsTable.country] else null,
+        city = if (this.hasValue(AccountsTable.city)) this[AccountsTable.city] else null,
+        count = this[AccountsTable.id.count()]
     )
 }
 

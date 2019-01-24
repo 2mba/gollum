@@ -71,18 +71,18 @@ fun FieldCondition.validate(): Boolean {
                 else -> false
             }
         }
-        "interests" -> {
-            return when (this.predicate) {
-                "contains", "any" -> true
-                else -> false
-            }
-        }
-        "likes" -> {
-            return when (this.predicate) {
-                "contains" -> true
-                else -> false
-            }
-        }
+//        "interests" -> {
+//            return when (this.predicate) {
+//                "contains", "any" -> true
+//                else -> false
+//            }
+//        }
+//        "likes" -> {
+//            return when (this.predicate) {
+//                "contains" -> true
+//                else -> false
+//            }
+//        }
         "premium" -> {
             return when (this.predicate) {
                 "now" -> {
