@@ -9,7 +9,6 @@ import org.tumba.gollum.domain.repository.IAccountRepository
 
 
 class AccountsImporter(private val accountRepository: IAccountRepository,
-                       private val inMemoryRepository: InMemoryRepository,
                        private val dslJson: DslJson<Any>, private val path: String) {
     fun import() {
         try {
@@ -20,8 +19,9 @@ class AccountsImporter(private val accountRepository: IAccountRepository,
                 .forEach { header ->
                     zipFile.getInputStream(header).use { stream ->
                         val accountList = dslJson.deserialize(AccountList::class.java, stream)
+                        println("${header.fileName}: Accounts ${accountList.accounts.size}")
+                        println("Memory usage. Total: ${Runtime.getRuntime().totalMemory()/1024/1024} Free: ${Runtime.getRuntime().freeMemory()/1024/1024}")
                         accountRepository.insert(accountList.accounts)
-                        accountList.accounts.forEach { inMemoryRepository.tryInsert(it) }
                     }
                 }
         } catch (e: ZipException) {

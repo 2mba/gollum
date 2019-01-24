@@ -48,7 +48,6 @@ class InMemoryRepository {
 
 class Routes(
     private val repository: IAccountRepository,
-    private val inMemoryRepository: InMemoryRepository,
     private val dslJson: DslJson<Any>
 ) {
     fun getRoute(routing: Routing) {
@@ -143,10 +142,10 @@ class Routes(
                     return@post
                 }
 
-                if (!inMemoryRepository.tryInsert(account)) {
+               /* if (!inMemoryRepository.tryInsert(account)) {
                     call.respond(HttpStatusCode.BadRequest, "{}")
                     return@post
-                }
+                }*/
 
                 call.respond(HttpStatusCode.Created, "{}")
                 return@post
@@ -179,10 +178,10 @@ class Routes(
                 }
 
                 try {
-                    if (!inMemoryRepository.tryUpdate(id, accountPatch)) {
+                    /*if (!inMemoryRepository.tryUpdate(id, accountPatch)) {
                         call.respond(HttpStatusCode.NotFound, "{}")
                         return@post
-                    }
+                    }*/
                 } catch (ex: IllegalArgumentException) {
                     call.respond(HttpStatusCode.BadRequest, "{}")
                     return@post
