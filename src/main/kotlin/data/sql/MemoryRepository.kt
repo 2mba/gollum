@@ -29,6 +29,7 @@ class MemoryRepository : IAccountRepository {
 
     override fun filter(conditions: List<FieldCondition>, limit: Int): List<Account> {
         return accounts
+            .reversedIterator()
             .asSequence()
             .filter { entity ->
                 entity.filter(conditions)
@@ -118,9 +119,9 @@ class MemoryRepository : IAccountRepository {
     private fun AccountEntity.filter(condition: FieldCondition): Boolean {
         return when (condition.fieldName) {
             "email" -> filterEmail(email, domain, condition.predicate, condition.value)
-            "fname" -> fname?.let { filterString(it, condition.predicate, condition.value) } ?: false
-            "sname"-> sname?.let { filterString(it, condition.predicate, condition.value) } ?: false
-            "phone"-> phone?.let { filterString(it, condition.predicate, condition.value) } ?: false
+            "fname" -> filterString(fname, condition.predicate, condition.value) ?: false
+            "sname"-> filterString(sname, condition.predicate, condition.value) ?: false
+            "phone"-> filterString(phone, condition.predicate, condition.value) ?: false
             "sex" -> filterInt(sex, condition.predicate, condition.value.toSexEntityValue())
             "status" -> filterInt(status, condition.predicate, condition.value.toStatusEntityValue())
             else -> true
@@ -143,11 +144,12 @@ class MemoryRepository : IAccountRepository {
         }
     }
 
-    private fun filterString(value: String, predicate: String, filterValue: String): Boolean {
+    private fun filterString(value: String?, predicate: String, filterValue: String): Boolean {
         return when (predicate) {
             "eq" -> value == filterValue
-            "gt" -> value < filterValue
-            "lt" -> value > filterValue
+            "gt" -> if (value != null) value < filterValue else false
+            "lt" -> if (value != null) value > filterValue else false
+            "null" -> if (filterValue == "0") value != null else value == null
             else -> true
         }
     }
@@ -224,3 +226,24 @@ private class AccountEntity(
     val likes: Array<Like>? = null
 )
 
+private fun <T> List<T>.reversedIterator(): Iterator<T> = ReverseIterator(this)
+
+class ReverseIterator<T>(private val list: List<T>) : Iterator<T>, Iterable<T> {
+    private var position: Int = 0
+
+    init {
+        this.position = list.size - 1
+    }
+
+    override fun iterator(): Iterator<T> {
+        return this
+    }
+
+    override fun hasNext(): Boolean {
+        return position >= 0
+    }
+
+    override fun next(): T {
+        return list[position--]
+    }
+}
