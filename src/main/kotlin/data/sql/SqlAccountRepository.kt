@@ -28,8 +28,13 @@ class SqlAccountRepository(val database: Database, val timestamp: Long) : IAccou
         transaction(Connection.TRANSACTION_SERIALIZABLE, 1, database) {
             addLogger(StdOutSqlLogger)
             SchemaUtils.create(AccountsTable)
+            SchemaUtils.createIndex(Index(arrayListOf(AccountsTable.email),true)).forEach { exec(it) }
+            SchemaUtils.createIndex(Index(arrayListOf(AccountsTable.sex),false)).forEach { exec(it) }
+            SchemaUtils.createIndex(Index(arrayListOf(AccountsTable.status),false)).forEach { exec(it) }
+            exec("CREATE INDEX country_index ON ${AccountsTable.tableName} (country) WHERE country IS NOT NULL")
+            exec("CREATE INDEX city_index ON ${AccountsTable.tableName} (city) WHERE city IS NOT NULL")
         }
-    }
+   }
 
     override fun insert(accounts: List<Account>) {
         transaction(Connection.TRANSACTION_SERIALIZABLE, 1, database) {
@@ -51,119 +56,12 @@ class SqlAccountRepository(val database: Database, val timestamp: Long) : IAccou
         }
     }
 
-    override fun update(id: Long, accountPatch: AccountPatch): Boolean {
+    override fun update(id: Int, accountPatch: AccountPatch): Boolean {
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
-    override fun filter(conditions: List<FieldCondition>, limit: Int, minId: Long?, maxId: Long?): List<Account> {
-        val stringColumns = hashMapOf(
-            Pair("fname", AccountsTable.fname),
-            Pair("sname", AccountsTable.sname),
-            Pair("phone", AccountsTable.phone),
-            Pair("country", AccountsTable.country),
-            Pair("city", AccountsTable.city)
-        )
-        val usedColumns = ArrayList<Column<*>>()
-        usedColumns.add(AccountsTable.id)
-        usedColumns.add(AccountsTable.email)
-        val filters = conditions
-            .filter { c -> c.fieldName != "interests" }
-            .map { condition ->
-                when (condition.fieldName) {
-                "fname", "sname", "phone", "country", "city" -> {
-                    val column = stringColumns[condition.fieldName]!!
-                    usedColumns.add(column)
-                    when (condition.predicate) {
-                        "eq" -> column eq condition.value
-                        "neq" -> column neq condition.value
-                        "any" -> column inList condition.value.split(',')
-                        "null" ->
-                            if (condition.value == "0")
-                                column.isNotNull()
-                            else
-                                column.isNull()
-                        "starts" -> LikeOp(column, QueryParameter("${condition.value}%", column.columnType))
-                        "code" -> LikeOp(column, QueryParameter("%(${condition.value})%", column.columnType))
-                        else -> illegalCondition(condition)
-                    }
-                }
-                "status" -> {
-                    usedColumns.add(AccountsTable.status)
-                    val status = StatusDbMapper.toDbValue(when (condition.value) {
-                        Status.BUSY.value -> Status.BUSY
-                        Status.COMPLICATED.value -> Status.COMPLICATED
-                        Status.FREE.value -> Status.FREE
-                        else -> illegalCondition(condition)
-                    })
-                    when (condition.predicate) {
-                        "eq" -> AccountsTable.status eq status
-                        "neq" -> AccountsTable.sex neq status
-                        else -> illegalCondition(condition)
-                    }
-                }
-                "email" -> {
-                    val column = AccountsTable.email
-                    when (condition.predicate) {
-                        "domain" -> LikeOp(column, QueryParameter("%@${condition.value}", column.columnType))
-                        "lt" -> column less condition.value
-                        "gt" -> column greater condition.value
-                        else -> illegalCondition(condition)
-                    }
-                }
-                "sex" -> {
-                    usedColumns.add(AccountsTable.sex)
-                    val sex = SexDbMapper.toDbValue(when (condition.value) {
-                        Sex.MALE.value -> Sex.MALE
-                        Sex.FEMALE.value -> Sex.FEMALE
-                        else -> illegalCondition(condition)
-                    })
-                    when (condition.predicate) {
-                        "eq" -> AccountsTable.sex eq sex
-                        "neq" -> AccountsTable.sex neq sex
-                        else -> illegalCondition(condition)
-                    }
-                }
-                "birth" -> {
-                    usedColumns.add(AccountsTable.birth)
-                    when (condition.predicate) {
-                        "lt" -> AccountsTable.birth less condition.value.toLong()
-                        "gt" -> AccountsTable.birth greater condition.value.toLong()
-                        "year" -> {
-                            val year = condition.value.toInt()
-                            val yearStart = LocalDate.of(year, 1, 1).toEpochDay() * 60 * 60 * 24
-                            val yearEnd = LocalDate.of(year+1, 1, 1).toEpochDay()* 60 * 60 * 24
-
-                            (AccountsTable.birth greater yearStart) and (AccountsTable.birth less yearEnd)
-                        }
-                        else -> illegalCondition(condition)
-                    }
-                }
-                "premium" -> {
-                    usedColumns.add(AccountsTable.premium_start)
-                    usedColumns.add(AccountsTable.premium_finish)
-                    when (condition.predicate) {
-                        "null" ->
-                            if (condition.value == "0")
-                                AccountsTable.premium_start.isNotNull()
-                            else
-                                AccountsTable.premium_start.isNull()
-                        "now" -> {
-                            (AccountsTable.premium_start less timestamp.inc()) and (AccountsTable.premium_finish greater timestamp.dec())
-                        }
-                        else -> illegalCondition(condition)
-                    }
-                }
-                else -> illegalCondition(condition)
-            }
-        }
-            .toMutableList()
-
-        if (minId != null) {
-            filters.add(AccountsTable.id.greater(EntityID(minId.toInt().dec(), AccountsTable)))
-        }
-        if (maxId != null) {
-            filters.add(AccountsTable.id.less(EntityID(maxId.toInt().inc(), AccountsTable)))
-        }
+    override fun filter(conditions: List<FieldCondition>, limit: Int): List<Account> {
+        val (usedColumns, filters) = createFilters(conditions)
 
         return transaction(Connection.TRANSACTION_SERIALIZABLE, 1, database) {
 
@@ -188,6 +86,136 @@ class SqlAccountRepository(val database: Database, val timestamp: Long) : IAccou
                 .map { r -> r.toAccount() }
                 .toList()
         }
+    }
+
+    override fun group(keys: List<String>, conditions: List<FieldCondition>, limit: Int, order: Int): List<Group> {
+        val (usedColumns, filters) = createFilters(conditions)
+        val groupBy = keys.map {
+            when (it) {
+                "status" -> AccountsTable.status
+                "sex" -> AccountsTable.sex
+                "country" -> AccountsTable.country
+                "city" -> AccountsTable.city
+                else -> illegalArgument()
+            }
+        }.toTypedArray()
+
+        transaction(Connection.TRANSACTION_SERIALIZABLE, 1, database) {
+            AccountsTable.selectAll().groupBy(*groupBy)
+        }
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    private fun createFilters(conditions: List<FieldCondition>): Pair<ArrayList<Column<*>>, List<Op<Boolean>>> {
+        // todo: move to static
+        val stringColumns = hashMapOf(
+            Pair("fname", AccountsTable.fname),
+            Pair("sname", AccountsTable.sname),
+            Pair("phone", AccountsTable.phone),
+            Pair("country", AccountsTable.country),
+            Pair("city", AccountsTable.city)
+        )
+
+        val usedColumns = ArrayList<Column<*>>()
+        usedColumns.add(AccountsTable.id)
+        usedColumns.add(AccountsTable.email)
+        val filters = conditions
+            .asSequence()
+            .filter { c -> c.fieldName != "interests" && c.fieldName != "likes" }
+            .map { condition ->
+                when (condition.fieldName) {
+                    "fname", "sname", "phone", "country", "city" -> {
+                        val column = stringColumns[condition.fieldName]!!
+                        usedColumns.add(column)
+                        when (condition.predicate) {
+                            "eq" -> column eq condition.value
+                            "neq" -> column neq condition.value
+                            "any" -> column inList condition.value.split(',')
+                            "null" ->
+                                if (condition.value == "0")
+                                    column.isNotNull()
+                                else
+                                    column.isNull()
+                            "starts" -> LikeOp(column, QueryParameter("${condition.value}%", column.columnType))
+                            "code" -> LikeOp(column, QueryParameter("%(${condition.value})%", column.columnType))
+                            else -> illegalCondition(condition)
+                        }
+                    }
+                    "status" -> {
+                        usedColumns.add(AccountsTable.status)
+                        val status = StatusDbMapper.toDbValue(
+                            when (condition.value) {
+                                Status.BUSY.value -> Status.BUSY
+                                Status.COMPLICATED.value -> Status.COMPLICATED
+                                Status.FREE.value -> Status.FREE
+                                else -> illegalCondition(condition)
+                            }
+                        )
+                        when (condition.predicate) {
+                            "eq" -> AccountsTable.status eq status
+                            "neq" -> AccountsTable.status neq status
+                            else -> illegalCondition(condition)
+                        }
+                    }
+                    "email" -> {
+                        val column = AccountsTable.email
+                        when (condition.predicate) {
+                            "domain" -> LikeOp(column, QueryParameter("%@${condition.value}", column.columnType))
+                            "lt" -> column less condition.value
+                            "gt" -> column greater condition.value
+                            else -> illegalCondition(condition)
+                        }
+                    }
+                    "sex" -> {
+                        usedColumns.add(AccountsTable.sex)
+                        val sex = SexDbMapper.toDbValue(
+                            when (condition.value) {
+                                Sex.MALE.value -> Sex.MALE
+                                Sex.FEMALE.value -> Sex.FEMALE
+                                else -> illegalCondition(condition)
+                            }
+                        )
+                        when (condition.predicate) {
+                            "eq" -> AccountsTable.sex eq sex
+                            "neq" -> AccountsTable.sex neq sex
+                            else -> illegalCondition(condition)
+                        }
+                    }
+                    "birth" -> {
+                        usedColumns.add(AccountsTable.birth)
+                        when (condition.predicate) {
+                            "lt" -> AccountsTable.birth less condition.value.toLong()
+                            "gt" -> AccountsTable.birth greater condition.value.toLong()
+                            "year" -> {
+                                val year = condition.value.toInt()
+                                val yearStart = LocalDate.of(year, 1, 1).toEpochDay() * 60 * 60 * 24
+                                val yearEnd = LocalDate.of(year + 1, 1, 1).toEpochDay() * 60 * 60 * 24
+
+                                (AccountsTable.birth greater yearStart) and (AccountsTable.birth less yearEnd)
+                            }
+                            else -> illegalCondition(condition)
+                        }
+                    }
+                    "premium" -> {
+                        usedColumns.add(AccountsTable.premium_start)
+                        usedColumns.add(AccountsTable.premium_finish)
+                        when (condition.predicate) {
+                            "null" ->
+                                if (condition.value == "0")
+                                    AccountsTable.premium_start.isNotNull()
+                                else
+                                    AccountsTable.premium_start.isNull()
+                            "now" -> {
+                                (AccountsTable.premium_start less timestamp.inc()) and (AccountsTable.premium_finish greater timestamp.dec())
+                            }
+                            else -> illegalCondition(condition)
+                        }
+                    }
+                    else -> illegalCondition(condition)
+                }
+            }
+            .toList()
+        return Pair(usedColumns, filters)
     }
 }
 
@@ -228,7 +256,7 @@ private fun AccountsTable.toDbEntity(insertStatement: InsertStatement<*>, accoun
 
 private fun ResultRow.toAccount(): Account {
     return Account(
-        id = this[AccountsTable.id].value.toLong(),
+        id = this[AccountsTable.id].value,
         fname = if (this.hasValue(AccountsTable.fname)) this[AccountsTable.fname] else null,
         sname = if (this.hasValue(AccountsTable.sname)) this[AccountsTable.sname] else null,
         email = this[AccountsTable.email],
@@ -265,3 +293,4 @@ fun combineFilters(conditions: List<Op<Boolean>>): Op<Boolean> {
 }
 
 private fun illegalCondition(condition: FieldCondition): Nothing = throw IllegalArgumentException("Illegal condition ${condition.fieldName} ${condition.predicate} ${condition.value}")
+private fun illegalArgument(): Nothing = throw IllegalArgumentException()

@@ -5,7 +5,6 @@ import domain.FieldCondition
 import domain.validate
 import io.ktor.application.call
 import io.ktor.http.HttpStatusCode
-import io.ktor.ratelimits.rateLimit
 import io.ktor.request.receiveStream
 import io.ktor.response.respond
 import io.ktor.routing.Routing
@@ -17,50 +16,9 @@ import io.ktor.util.flattenEntries
 import org.tumba.gollum.domain.entities.*
 import org.tumba.gollum.domain.repository.IAccountRepository
 
-class InterestsRepository {
-    private val map = HashMap<String, HashSet<Long>>()
-
-    fun insert(id: Long, interests: ArrayList<String>) {
-        interests.forEach {
-            if (map.containsKey(it)) {
-                map[it]!!.add(id)
-            }
-            else {
-                map[it] = hashSetOf(id)
-            }
-        }
-    }
-
-    fun contains(interests: List<String>): List<Long> {
-        val counters = HashMap<Long, Int>()
-        interests.forEach { interest ->
-            if (map.containsKey(interest)) {
-                map[interest]!!.forEach { id ->
-                    counters[id] = counters.getOrDefault(id, 0) + 1
-                }
-            }
-        }
-        return counters
-            .filter { c -> c.value == interests.size }
-            .map { c -> c.key }
-    }
-
-    fun any(interests: List<String>): List<Long> {
-        val counters = HashSet<Long>()
-        interests.forEach { interest ->
-            if (map.containsKey(interest)) {
-                map[interest]!!.forEach { id ->
-                    counters.add(id)
-                }
-            }
-        }
-        return counters.toList()
-    }
-}
 
 class InMemoryRepository {
-    private val interestsRepository: InterestsRepository = InterestsRepository()
-    private val ids = HashMap<Long, String>()
+    private val ids = HashMap<Int, String>()
     private val emails = HashSet<String>()
 
     fun tryInsert(account: Account): Boolean {
@@ -69,13 +27,11 @@ class InMemoryRepository {
             if (emails.contains(account.email)) return false
             ids[account.id] = account.email
             emails.add(account.email)
-            if (account.interests != null)
-                interestsRepository.insert(account.id, account.interests)
             return true
         }
     }
 
-    fun tryUpdate(id: Long, account: AccountPatch): Boolean {
+    fun tryUpdate(id: Int, account: AccountPatch): Boolean {
         synchronized(this) {
             if (!ids.containsKey(id)) return false
             if (account.email != null) {
@@ -88,16 +44,6 @@ class InMemoryRepository {
             return true
         }
     }
-
-    fun filterInterests(predicate: String, interests: List<String>, limit: Int): List<Long> {
-        val ids = if (predicate == "contains")
-            interestsRepository.contains(interests)
-        else
-            interestsRepository.any(interests)
-
-        return ids
-            .sortedByDescending { it }
-    }
 }
 
 class Routes(
@@ -107,62 +53,80 @@ class Routes(
 ) {
     fun getRoute(routing: Routing) {
         routing.route("accounts") {
-            rateLimit("filter", limit = 10, seconds = 5) {
-                get("filter") {
-                    val queryParams = context.request.queryParameters
-                        .filter { param, _ -> param != "limit" && param != "query_id" }
-                        .flattenEntries()
+            get("filter") {
+                val queryParams = context.request.queryParameters
+                    .filter { param, _ -> param != "limit" && param != "query_id" }
+                    .flattenEntries()
 
-                    val fieldConditions: List<FieldCondition>
+                val fieldConditions: List<FieldCondition>
 
-                    try {
-                        fieldConditions = queryParams.map {
-                            val keyParts = it.first.split('_')
-                            if (keyParts.size != 2 || keyParts[0].isEmpty() || keyParts[1].isEmpty()) {
-                                call.respond(HttpStatusCode.BadRequest, "{}")
-                                return@get
-                            }
-                            val condition = FieldCondition(keyParts[0], keyParts[1], it.second)
-                            if (!condition.validate()) {
-                                call.respond(HttpStatusCode.BadRequest, "{}")
-                                return@get
-                            }
-                            condition
-                        }
-                    } catch (e: Exception) {
-                        call.respond(HttpStatusCode.BadRequest, "{}")
-                        return@get
-                    }
-
-                    val limitStr = context.request.queryParameters["limit"]
-                    val limit = limitStr!!.toInt()
-
-                    val interestsCondition = fieldConditions.firstOrNull { x -> x.fieldName == "interests" }
-                    val idsFilteredByInterests: List<Long>
-                    if (interestsCondition != null) {
-                        idsFilteredByInterests = inMemoryRepository.filterInterests(
-                            interestsCondition.predicate,
-                            interestsCondition.value.split(','),
-                            limit
-                        )
-                        if (idsFilteredByInterests.isEmpty()) {
-                            val jsonWriter = dslJson.newWriter()
-                            dslJson.serialize(jsonWriter, AccountList(arrayListOf()))
-                            call.respond(jsonWriter.toString())
+                try {
+                    fieldConditions = queryParams.map {
+                        val keyParts = it.first.split('_')
+                        if (keyParts.size != 2 || keyParts[0].isEmpty() || keyParts[1].isEmpty()) {
+                            call.respond(HttpStatusCode.BadRequest, "{}")
                             return@get
                         }
-                    } else {
-                        idsFilteredByInterests = arrayListOf()
+                        val condition = FieldCondition(keyParts[0], keyParts[1], it.second)
+                        if (!condition.validate()) {
+                            call.respond(HttpStatusCode.BadRequest, "{}")
+                            return@get
+                        }
+                        condition
                     }
-                    val minInterestsId = idsFilteredByInterests.lastOrNull()
-                    val maxInterestsId = idsFilteredByInterests.firstOrNull()
-
-                    val accounts = repository.filter(fieldConditions, limit, minInterestsId, maxInterestsId)
-
-                    val jsonWriter = dslJson.newWriter()
-                    dslJson.serialize(jsonWriter, AccountList(accounts))
-                    call.respond(jsonWriter.toString())
+                } catch (e: Exception) {
+                    call.respond(HttpStatusCode.BadRequest, "{}")
+                    return@get
                 }
+
+                val limitStr = context.request.queryParameters["limit"]
+                val limit = limitStr!!.toInt()
+
+                if (fieldConditions.any { x -> x.fieldName == "likes" || x.fieldName == "interests" }) {
+                    val jsonWriter = dslJson.newWriter()
+                    dslJson.serialize(jsonWriter, AccountList(arrayListOf()))
+                    call.respond(jsonWriter.toString())
+                    return@get
+                }
+
+                var accounts = repository.filter(fieldConditions, limit)
+
+                val jsonWriter = dslJson.newWriter()
+                dslJson.serialize(jsonWriter, AccountList(accounts))
+                call.respond(jsonWriter.toString())
+            }
+
+            get("group") {
+                val groupQueryParams = context.request.queryParameters
+                    .filter { param, _ -> param != "limit" && param != "query_id" && param != "keys" && param != "order" }
+                    .flattenEntries()
+
+                val conditions: List<FieldCondition>
+
+                try {
+                    conditions = groupQueryParams.map {
+                        val condition = FieldCondition(it.first, "eq", it.second)
+                        if (!condition.validate()) {
+                            call.respond(HttpStatusCode.BadRequest, "{}")
+                            return@get
+                        }
+                        condition
+                    }
+                } catch (e: Exception) {
+                    call.respond(HttpStatusCode.BadRequest, "{}")
+                    return@get
+                }
+
+                val limitStr = context.request.queryParameters["limit"]
+                val limit = limitStr!!.toInt()
+
+                val orderStr = context.request.queryParameters["order"]
+                val order = orderStr!!.toInt()
+
+                val keyStr = context.request.queryParameters["keys"]
+                val keys = keyStr!!.split(',').forEach { k -> k.validateKey() }
+
+                return@get
             }
 
             post("new") {
@@ -194,9 +158,9 @@ class Routes(
                     call.respond(HttpStatusCode.BadRequest, "{}")
                     return@post
                 }
-                val id = idStr.toLongOrNull()
+                val id = idStr.toIntOrNull()
                 if (id == null) {
-                    call.respond(HttpStatusCode.BadRequest, "{}")
+                    call.respond(HttpStatusCode.NotFound, "{}")
                     return@post
                 }
 
@@ -241,11 +205,6 @@ class Routes(
                     call.respond(HttpStatusCode.Accepted, "{}")
                     return@post
                 }
-
-//                if (!repository.updateLikes(likeInfoList.likes)) {
-//                    call.respond(HttpStatusCode.BadRequest, "{}")
-//                    return@post
-//                }
 
                 call.respond(HttpStatusCode.Accepted, "{}")
                 return@post

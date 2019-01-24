@@ -32,7 +32,7 @@ enum class Sex(@get:JsonValue val value: String) {
 
 @CompiledJson
 data class Account(
-    val id: Long,
+    val id: Int,
     val email: String,
     val fname: String?,
     val sname: String?,
@@ -51,6 +51,20 @@ data class Account(
 @CompiledJson
 data class AccountList(
     val accounts: List<Account>
+)
+
+@CompiledJson
+data class Group(
+    val sex: String?,
+    val status: String?,
+    val country: String?,
+    val city: String?,
+    val count: Int
+)
+
+@CompiledJson
+data class GroupList(
+    val groups: List<Group>
 )
 
 @CompiledJson
@@ -137,6 +151,12 @@ fun AccountPatch.validate(): Boolean {
 
     if (premium != null && premium.start < minPremium) return false
 
+
     // todo: likes
     return true
+}
+
+fun String.validateKey(): Boolean {
+    // todo: move to static
+    return arrayListOf("sex", "status", "country", "city").contains(this)
 }

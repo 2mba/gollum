@@ -2,8 +2,6 @@ package org.tumba.gollum
 
 import com.dslplatform.json.DslJson
 import com.dslplatform.json.runtime.Settings
-import io.ktor.application.install
-import io.ktor.ratelimits.RateLimits
 import io.ktor.routing.routing
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
@@ -23,6 +21,8 @@ fun main(args: Array<String>) {
     val optionsLines = File(optionsPath).readLines()
     val optionsNow = optionsLines[0].trim().toLong()
 
+    //File(databasePath+"sqlite/db/accounts").delete()
+
     val inMemoryRepository = InMemoryRepository()
     val accountRepository = createAccountRepository(optionsNow)
     val dslJson = DslJson<Any>(Settings.withRuntime<Any>().includeServiceLoader().skipDefaultValues(true))
@@ -33,13 +33,12 @@ fun main(args: Array<String>) {
 
     val routes = Routes(accountRepository, inMemoryRepository, dslJson)
 
-    embeddedServer(Netty, port) {
-        install(RateLimits)
+    embeddedServer(Netty, port = port) {
         routing { routes.getRoute(this) }
     }.start(wait = true)
 }
 
-const val databasePath = "/"//"/Users/obairka/Projects/gollum/"
+const val databasePath = "/Users/obairka/Projects/gollum/"
 const val databaseConnectionString = "jdbc:sqlite:${databasePath}sqlite/db/accounts"
 
 fun createAccountRepository(now: Long): IAccountRepository {
@@ -62,7 +61,6 @@ fun createDatabase() {
                 println("The driver name is " + meta.driverName)
                 println("A new database has been created.")
             }
-
         }
     } catch (e: SQLException) {
         println(e.message)
