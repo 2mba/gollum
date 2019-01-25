@@ -29,6 +29,9 @@ class MemoryRepository : IAccountRepository {
     }
 
     override fun filter(conditions: List<FieldCondition>, limit: Int): List<Account> {
+        val fields = hashSetOf<String>().apply {
+            conditions.forEach { add(it.fieldName) }
+        }
         return accounts
             .reversedIterator()
             .asSequence()
@@ -36,7 +39,7 @@ class MemoryRepository : IAccountRepository {
                 entity.filter(conditions)
             }
             .take(limit)
-            .map { it.toAccount() }
+            .map { it.toAccount(fields) }
             .toList()
     }
 
@@ -67,24 +70,28 @@ class MemoryRepository : IAccountRepository {
         )
     }
 
-    private fun AccountEntity.toAccount(): Account {
+    private fun AccountEntity.toAccount(fields: Set<String>): Account {
         val entity = this
         return Account(
             id = entity.id,
             email = entity.email,
-            fname = entity.fname,
-            sname = entity.sname,
-            phone = entity.phone,
-            sex = entity.sex.toSex(),
-            birth = entity.birth,
-            country = entity.country?.let { countries[it] },
-            city = entity.city?.let { cities[it] },
-            joined = entity.joined,
-            status = entity.status.toStatus(),
-            interests = arrayListOf(),
-            premium = entity.premiumStart?.let { Premium(entity.premiumStart, entity.premiumFinish!!) },
-            likes = arrayListOf()
+            fname = entity.fname.filterField("fname", fields),
+            sname = entity.sname.filterField("sname", fields),
+            phone = entity.phone.filterField("phone", fields),
+            sex = entity.sex.toSex().filterField("sex", fields),
+            birth = entity.birth.filterField("birth", fields),
+            country = entity.country?.let { countries[it] }.filterField("country", fields),
+            city = entity.city?.let { cities[it] }.filterField("city", fields),
+            joined = entity.joined.filterField("joined", fields),
+            status = entity.status.toStatus().filterField("status", fields),
+            interests = arrayListOf<String>().filterField("interests", fields),
+            premium = entity.premiumStart?.let { Premium(entity.premiumStart, entity.premiumFinish!!) }.filterField("premium", fields),
+            likes = arrayListOf<Like>().filterField("likes", fields)
         )
+    }
+
+    private fun <T> T?.filterField(name: String, fields: Set<String>): T? {
+        return if (fields.contains(name)) this else null
     }
 
     private fun getCountryId(country: String): Int {
@@ -121,13 +128,13 @@ class MemoryRepository : IAccountRepository {
         return when (condition.fieldName) {
             "email" -> filterEmail(email, domain, condition.predicate, condition.value)
             "fname" -> filterString(fname, condition.predicate, condition.value)
-            "sname"-> filterString(sname, condition.predicate, condition.value)
-            "phone"-> filterString(phone, condition.predicate, condition.value)
+            "sname" -> filterString(sname, condition.predicate, condition.value)
+            "phone" -> filterString(phone, condition.predicate, condition.value)
             "sex" -> filterInt(sex, condition.predicate, condition.value.toSexEntityValue())
             "status" -> filterInt(status, condition.predicate, condition.value.toStatusEntityValue())
-            "country"-> filterCountry(country, condition.predicate, condition.value)
-            "city"-> filterCity(city, condition.predicate, condition.value)
-            "birth"-> filterBirth(birth, condition.predicate, condition.value)
+            "country" -> filterCountry(country, condition.predicate, condition.value)
+            "city" -> filterCity(city, condition.predicate, condition.value)
+            "birth" -> filterBirth(birth, condition.predicate, condition.value)
             else -> true
         }
     }
@@ -252,7 +259,7 @@ private fun Int.toStatus(): Status? {
     return Status.values()[this]
 }
 
-private fun String.toSexEntityValue(): Int{
+private fun String.toSexEntityValue(): Int {
     return when (this) {
         "m" -> 0
         "f" -> 1
