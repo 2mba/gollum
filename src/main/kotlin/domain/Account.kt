@@ -85,12 +85,12 @@ data class AccountPatch(
     val fname: String?,
     val sname: String?,
     val phone: String?,
-    val sex: String?,
+    val sex: Sex?,
     val birth: Long?,
     val country: String?,
     val city: String?,
     val joined: Long?,
-    val status: String?,
+    val status: Status?,
     val interests: ArrayList<String>?,
     val premium: Premium?,
     val likes: ArrayList<Like>?
@@ -133,8 +133,6 @@ fun AccountPatch.validate(): Boolean {
     if (fname != null && (fname.isEmpty() || fname.length > 50)) return false
     if (sname != null && (sname.isEmpty() || sname.length > 50)) return false
     if (phone != null && (phone.isEmpty() || phone.length > 16)) return false
-    if (sex != null)
-        if (sex != "m" && sex != "f") return false
 
     if (birth != null)
         if (birth < minBirth || birth > maxBirth) return false
@@ -144,8 +142,6 @@ fun AccountPatch.validate(): Boolean {
 
     if (joined != null)
         if (joined < minJoined || joined > maxJoined) return false
-    if (status != null)
-        if (status != "свободны" && status != "заняты" && status != "всё сложно") return false
 
     if (interests != null && interests.any { it.isEmpty() || it.length > 100 }) return false
 

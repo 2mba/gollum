@@ -9,8 +9,8 @@ import org.jetbrains.exposed.sql.Database
 import org.tumba.gollum.data.mongo.SqlAccountRepository
 import org.tumba.gollum.domain.repository.IAccountRepository
 import java.io.File
-import java.sql.DriverManager
-import java.sql.SQLException
+import java.util.*
+import kotlin.concurrent.schedule
 import kotlin.system.measureTimeMillis
 
 
@@ -21,48 +21,29 @@ fun main(args: Array<String>) {
     val optionsLines = File(optionsPath).readLines()
     val optionsNow = optionsLines[0].trim().toLong()
 
-    //File(databasePath+"sqlite/db/accounts").delete()
-
-    val inMemoryRepository = InMemoryRepository()
     val accountRepository = createAccountRepository(optionsNow)
     val dslJson = DslJson<Any>(Settings.withRuntime<Any>().includeServiceLoader().skipDefaultValues(true))
 
-    val dataImporter = AccountsImporter(accountRepository, inMemoryRepository, dslJson, dataPath)
+    Timer("memoryusage", false).schedule(5000, 90000) {
+        val bytesUsage = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()
+        println("Memory Usage: ${bytesUsage/1024/1024} mb (${bytesUsage} bytes)")
+    }
+    val dataImporter = AccountsImporter(accountRepository, dslJson, dataPath)
 
     measureTimeMillis { dataImporter.import() }.also { println("Import $it ms") }
 
-    val routes = Routes(accountRepository, inMemoryRepository, dslJson)
+    val routes = Routes(accountRepository, dslJson)
 
-    embeddedServer(Netty, port = port) {
+    embeddedServer(Netty, port = port, configure = {
+        this.requestQueueLimit = 8
+        this.runningLimit = 16
+        this.responseWriteTimeoutSeconds = 1
+    }) {
         routing { routes.getRoute(this) }
     }.start(wait = true)
 }
 
-const val databasePath = "/"//"/Users/obairka/Projects/gollum/"
-const val databaseConnectionString = "jdbc:sqlite:${databasePath}sqlite/db/accounts"
-
 fun createAccountRepository(now: Long): IAccountRepository {
-    createDatabase()
-    val database = Database.connect(
-        url = databaseConnectionString,
-        driver = "org.sqlite.JDBC",
-        user = "highload",
-        password = "highload"
-    )
-
+    val database = Database.connect("jdbc:h2:mem:regular;DB_CLOSE_DELAY=-1", "org.h2.Driver")
     return SqlAccountRepository(database, now)
-}
-
-fun createDatabase() {
-    try {
-        DriverManager.getConnection(databaseConnectionString).use { conn ->
-            if (conn != null) {
-                val meta = conn.metaData
-                println("The driver name is " + meta.driverName)
-                println("A new database has been created.")
-            }
-        }
-    } catch (e: SQLException) {
-        println(e.message)
-    }
 }

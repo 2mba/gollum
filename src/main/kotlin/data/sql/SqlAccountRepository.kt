@@ -1,8 +1,6 @@
 package org.tumba.gollum.data.mongo
 
 import domain.FieldCondition
-import org.jetbrains.exposed.dao.EntityID
-import org.jetbrains.exposed.dao.IntIdTable
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.greater
@@ -12,6 +10,7 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.isNull
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.less
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.neq
 import org.jetbrains.exposed.sql.statements.InsertStatement
+import org.jetbrains.exposed.sql.statements.UpdateStatement
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.tumba.gollum.domain.entities.*
 import org.tumba.gollum.domain.repository.IAccountRepository
@@ -28,17 +27,18 @@ class SqlAccountRepository(val database: Database, val timestamp: Long) : IAccou
         transaction(Connection.TRANSACTION_SERIALIZABLE, 1, database) {
             addLogger(StdOutSqlLogger)
             SchemaUtils.create(AccountsTable)
-            SchemaUtils.createIndex(Index(arrayListOf(AccountsTable.email),true)).forEach { exec(it) }
-            SchemaUtils.createIndex(Index(arrayListOf(AccountsTable.sex),false)).forEach { exec(it) }
-            SchemaUtils.createIndex(Index(arrayListOf(AccountsTable.status),false)).forEach { exec(it) }
-            exec("CREATE INDEX country_index ON ${AccountsTable.tableName} (country) WHERE country IS NOT NULL")
-            exec("CREATE INDEX city_index ON ${AccountsTable.tableName} (city) WHERE city IS NOT NULL")
+//            AccountsTable.index(true, AccountsTable.email)
+//            AccountsTable.index(false, AccountsTable.sex)
+//            AccountsTable.index(false, AccountsTable.status)
+//            AccountsTable.index(false, AccountsTable.country)
+//            AccountsTable.index(false, AccountsTable.city)
         }
    }
 
     override fun insert(accounts: List<Account>) {
         transaction(Connection.TRANSACTION_SERIALIZABLE, 1, database) {
-            AccountsTable.batchInsert(accounts.toList(), ignore = false) { account ->
+
+            AccountsTable.batchInsert(accounts, ignore = false) { account ->
                 AccountsTable.toDbEntity(this, account)
             }
         }
@@ -57,6 +57,17 @@ class SqlAccountRepository(val database: Database, val timestamp: Long) : IAccou
     }
 
     override fun update(id: Int, accountPatch: AccountPatch): Boolean {
+        try {
+            transaction(Connection.TRANSACTION_SERIALIZABLE, 1, database) {
+                AccountsTable.update {
+                    AccountsTable.toDbEntity(it, accountPatch, id)
+                }
+            }
+            return true
+        }
+        catch (ex: Throwable) {
+            return false
+        }
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
@@ -239,7 +250,8 @@ class SqlAccountRepository(val database: Database, val timestamp: Long) : IAccou
     }
 }
 
-private object AccountsTable : IntIdTable() {
+private object AccountsTable : Table() {
+    val id: Column<Int> = integer("id").primaryKey()
     val fname = varchar("fname", 50).nullable()
     val sname = varchar("sname", 50).nullable()
     val email = varchar("email", 100)
@@ -258,7 +270,7 @@ private object AccountsTable : IntIdTable() {
 }
 
 private fun AccountsTable.toDbEntity(insertStatement: InsertStatement<*>, account: Account) {
-    insertStatement[id] = EntityID(account.id.toInt(), AccountsTable)
+    insertStatement[id] = account.id
     insertStatement[fname] = account.fname
     insertStatement[sname] = account.sname
     insertStatement[email] = account.email
@@ -276,9 +288,44 @@ private fun AccountsTable.toDbEntity(insertStatement: InsertStatement<*>, accoun
     insertStatement[joined] = account.joined
 }
 
+private fun AccountsTable.toDbEntity(statement: UpdateStatement, account: AccountPatch, idVal: Int) {
+    statement[id] = idVal
+    statement[fname] = account.fname
+    statement[sname] = account.sname
+    if (account.email != null) {
+        statement[email] = account.email
+        statement[email_domain] = account.email.split('@')[1]
+    }
+    if (account.status != null) {
+        statement[status] = StatusDbMapper.toDbValue(account.status)
+    }
+    if (account.premium != null) {
+        statement[premium_start] = account.premium.start
+        statement[premium_finish] = account.premium.finish
+    }
+    if (account.sex != null) {
+        statement[sex] = SexDbMapper.toDbValue(account.sex)
+    }
+    if (account.phone != null) {
+        statement[phone] = account.phone
+    }
+    if (account.birth != null) {
+        statement[birth] = account.birth
+    }
+    if (account.city != null) {
+        statement[city] = account.city
+    }
+    if (account.country != null) {
+        statement[country] = account.country
+    }
+    if (account.joined != null) {
+        statement[joined] = account.joined
+    }
+}
+
 private fun ResultRow.toAccount(): Account {
     return Account(
-        id = this[AccountsTable.id].value,
+        id = this[AccountsTable.id],
         fname = if (this.hasValue(AccountsTable.fname)) this[AccountsTable.fname] else null,
         sname = if (this.hasValue(AccountsTable.sname)) this[AccountsTable.sname] else null,
         email = this[AccountsTable.email],

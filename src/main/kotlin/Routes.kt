@@ -17,38 +17,8 @@ import org.tumba.gollum.domain.entities.*
 import org.tumba.gollum.domain.repository.IAccountRepository
 
 
-class InMemoryRepository {
-    private val ids = HashMap<Int, String>()
-    private val emails = HashSet<String>()
-
-    fun tryInsert(account: Account): Boolean {
-        synchronized(this) {
-            if (ids.containsKey(account.id)) return false
-            if (emails.contains(account.email)) return false
-            ids[account.id] = account.email
-            emails.add(account.email)
-            return true
-        }
-    }
-
-    fun tryUpdate(id: Int, account: AccountPatch): Boolean {
-        synchronized(this) {
-            if (!ids.containsKey(id)) return false
-            if (account.email != null) {
-                if (emails.contains(account.email))
-                    throw IllegalArgumentException()
-                emails.remove(ids[id])
-                ids[id] = account.email
-                emails.add(account.email)
-            }
-            return true
-        }
-    }
-}
-
 class Routes(
     private val repository: IAccountRepository,
-    private val inMemoryRepository: InMemoryRepository,
     private val dslJson: DslJson<Any>
 ) {
     @Volatile var post: Boolean = false
@@ -57,7 +27,7 @@ class Routes(
         routing.route("accounts") {
             get("filter") {
                 if (post) {
-                    call.respond(HttpStatusCode.TooManyRequests, "{}")
+                    call.respond(HttpStatusCode.BadRequest, "{}")
                     return@get
                 }
 
@@ -98,7 +68,7 @@ class Routes(
 
             get("group") {
                 if (post) {
-                    call.respond(HttpStatusCode.TooManyRequests, "{}")
+                    call.respond(HttpStatusCode.BadRequest, "{}")
                     return@get
                 }
                 val groupQueryParams = context.request.queryParameters
@@ -167,7 +137,7 @@ class Routes(
                     return@post
                 }
 
-                if (!inMemoryRepository.tryInsert(account)) {
+                if (!repository.insert(account)) {
                     call.respond(HttpStatusCode.BadRequest, "{}")
                     return@post
                 }
@@ -177,6 +147,7 @@ class Routes(
             }
 
             post("{id}") {
+                post = true
                 val idStr = call.parameters["id"]
                 if (idStr == null) {
                     call.respond(HttpStatusCode.BadRequest, "{}")
@@ -203,7 +174,7 @@ class Routes(
                 }
 
                 try {
-                    if (!inMemoryRepository.tryUpdate(id, accountPatch)) {
+                    if (!repository.update(id, accountPatch)) {
                         call.respond(HttpStatusCode.NotFound, "{}")
                         return@post
                     }
@@ -216,6 +187,7 @@ class Routes(
                 return@post
             }
             post("likes") {
+                post = true
                 val likeInfoList: LikeInfoList
 
                 try {
