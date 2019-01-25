@@ -3,6 +3,7 @@ package org.tumba.gollum.data.sql
 import domain.FieldCondition
 import org.tumba.gollum.domain.entities.*
 import org.tumba.gollum.domain.repository.IAccountRepository
+import java.time.LocalDate
 
 class MemoryRepository : IAccountRepository {
 
@@ -119,11 +120,14 @@ class MemoryRepository : IAccountRepository {
     private fun AccountEntity.filter(condition: FieldCondition): Boolean {
         return when (condition.fieldName) {
             "email" -> filterEmail(email, domain, condition.predicate, condition.value)
-            "fname" -> filterString(fname, condition.predicate, condition.value) ?: false
-            "sname"-> filterString(sname, condition.predicate, condition.value) ?: false
-            "phone"-> filterString(phone, condition.predicate, condition.value) ?: false
+            "fname" -> filterString(fname, condition.predicate, condition.value)
+            "sname"-> filterString(sname, condition.predicate, condition.value)
+            "phone"-> filterString(phone, condition.predicate, condition.value)
             "sex" -> filterInt(sex, condition.predicate, condition.value.toSexEntityValue())
             "status" -> filterInt(status, condition.predicate, condition.value.toStatusEntityValue())
+            "country"-> filterCountry(country, condition.predicate, condition.value)
+            "city"-> filterCity(city, condition.predicate, condition.value)
+            "birth"-> filterBirth(birth, condition.predicate, condition.value)
             else -> true
         }
     }
@@ -147,9 +151,64 @@ class MemoryRepository : IAccountRepository {
     private fun filterString(value: String?, predicate: String, filterValue: String): Boolean {
         return when (predicate) {
             "eq" -> value == filterValue
-            "gt" -> if (value != null) value < filterValue else false
-            "lt" -> if (value != null) value > filterValue else false
+            "gt" -> if (value != null) value > filterValue else false
+            "lt" -> if (value != null) value < filterValue else false
+            "starts" -> value?.startsWith(filterValue) ?: false
             "null" -> if (filterValue == "0") value != null else value == null
+            else -> true
+        }
+    }
+
+    private fun filterCountry(country: Int?, predicate: String, filterValue: String): Boolean {
+        val id = countriesMap.getOrDefault(filterValue, -1)
+        return when (predicate) {
+            "eq" -> if (id >= 0) country == id else false
+            "null" -> if (filterValue == "0") country != null else country == null
+            else -> true
+        }
+    }
+
+    private fun filterCity(city: Int?, predicate: String, filterValue: String): Boolean {
+        return when (predicate) {
+            "any" -> {
+                if (city == null) {
+                    false
+                } else {
+                    filterValue
+                        .split(',')
+                        .asSequence()
+                        .map { citiesMap.getOrDefault(it, -1) }
+                        .filter { it >= 0 }
+                        .any { city == it }
+                }
+            }
+            "eq" -> {
+                if (city == null) {
+                    false
+                } else {
+                    val id = citiesMap.getOrDefault(filterValue, -1)
+                    if (id >= 0) city == id else false
+                }
+            }
+            "null" -> {
+                if (filterValue == "0") city != null else city == null
+            }
+            else -> true
+        }
+    }
+
+    private fun filterBirth(birth: Long?, predicate: String, filterValue: String): Boolean {
+        if (birth == null) return false
+        return when (predicate) {
+            "eq" -> birth == filterValue.toLong()
+            "gt" -> birth > filterValue.toLong()
+            "lt" -> birth < filterValue.toLong()
+            "year" -> {
+                val year = filterValue.toInt()
+                val yearStart = LocalDate.of(year, 1, 1).toEpochDay() * 60 * 60 * 24
+                val yearEnd = LocalDate.of(year + 1, 1, 1).toEpochDay() * 60 * 60 * 24
+                birth in yearStart..yearEnd
+            }
             else -> true
         }
     }
@@ -157,8 +216,8 @@ class MemoryRepository : IAccountRepository {
     private fun filterInt(value: Int, predicate: String, filterValue: Int): Boolean {
         return when (predicate) {
             "eq" -> value == filterValue
-            "gt" -> value < filterValue
-            "lt" -> value > filterValue
+            "gt" -> value > filterValue
+            "lt" -> value < filterValue
             else -> true
         }
     }
