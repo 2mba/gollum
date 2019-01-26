@@ -16,6 +16,7 @@ class AccountsImporter(private val accountRepository: IAccountRepository,
             val fileHeaders = zipFile.fileHeaders as List<FileHeader>
             fileHeaders
                 .filter { it -> it.fileName.startsWith("accounts_") }
+                .sortedBy { it.fileName.removePrefix("accounts_").removeSuffix(".json").toInt() }
                 .forEach { header ->
                     zipFile.getInputStream(header).use { stream ->
                         val accountList = dslJson.deserialize(AccountList::class.java, stream)
