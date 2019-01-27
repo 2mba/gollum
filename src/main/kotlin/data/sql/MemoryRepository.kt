@@ -5,7 +5,7 @@ import org.tumba.gollum.domain.entities.*
 import org.tumba.gollum.domain.repository.IAccountRepository
 import java.time.LocalDate
 
-class MemoryRepository : IAccountRepository {
+class MemoryRepository(private val now: Long) : IAccountRepository {
 
     private val accounts: MutableList<AccountEntity> = ArrayList(1_300_000)
     private val countries: MutableList<String> = ArrayList()
@@ -135,6 +135,7 @@ class MemoryRepository : IAccountRepository {
             "country" -> filterCountry(country, condition.predicate, condition.value)
             "city" -> filterCity(city, condition.predicate, condition.value)
             "birth" -> filterBirth(birth, condition.predicate, condition.value)
+            "premium" -> filterPremium(premiumStart, premiumFinish, condition.predicate)
             else -> true
         }
     }
@@ -215,6 +216,19 @@ class MemoryRepository : IAccountRepository {
                 val yearStart = LocalDate.of(year, 1, 1).toEpochDay() * 60 * 60 * 24
                 val yearEnd = LocalDate.of(year + 1, 1, 1).toEpochDay() * 60 * 60 * 24
                 birth in yearStart..yearEnd
+            }
+            else -> true
+        }
+    }
+
+    private fun filterPremium(premiumStart: Long?, premiumFinish: Long?, predicate: String): Boolean {
+        return when (predicate) {
+            "null" -> null == premiumStart
+            "now" -> {
+                if (null == premiumStart|| null == premiumFinish)
+                    false
+                else
+                    now in premiumStart .. premiumFinish
             }
             else -> true
         }

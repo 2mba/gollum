@@ -7,20 +7,18 @@ import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import org.tumba.gollum.data.sql.MemoryRepository
 import org.tumba.gollum.domain.repository.IAccountRepository
-import java.sql.DriverManager
-import java.sql.SQLException
+import java.io.File
 import kotlin.system.measureTimeMillis
 
 
 fun main(args: Array<String>) {
     val port = 80
     val dataPath = "/tmp/data/data.zip"
-    // val optionsPath = "/tmp/data/options.txt"
-    //val optionsLines = File(optionsPath).readLines()
-    //val optionsNow = optionsLines[0].trim().toLong()
+    val optionsPath = "/tmp/data/options.txt"
+    val optionsLines = File(optionsPath).readLines()
+    val optionsNow = optionsLines[0].trim().toLong()
 
-    //File(databasePath+"sqlite/db/accounts").delete()
-    val accountRepository = createAccountRepository(0)
+    val accountRepository = createAccountRepository(optionsNow)
     val dslJson = DslJson<Any>(Settings.withRuntime<Any>().includeServiceLoader().skipDefaultValues(true))
 
     val dataImporter = AccountsImporter(accountRepository, dslJson, dataPath)
@@ -34,23 +32,6 @@ fun main(args: Array<String>) {
     }.start(wait = true)
 }
 
-const val databasePath = "/Users/obairka/Projects/gollum/"
-const val databaseConnectionString = "jdbc:sqlite:${databasePath}sqlite/db/accounts"
-
 fun createAccountRepository(now: Long): IAccountRepository {
-    return MemoryRepository()
-}
-
-fun createDatabase() {
-    try {
-        DriverManager.getConnection(databaseConnectionString).use { conn ->
-            if (conn != null) {
-                val meta = conn.metaData
-                println("The driver name is " + meta.driverName)
-                println("A new database has been created.")
-            }
-        }
-    } catch (e: SQLException) {
-        println(e.message)
-    }
+    return MemoryRepository(now)
 }
