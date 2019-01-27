@@ -34,16 +34,15 @@ fun main(args: Array<String>) {
 
     val routes = Routes(accountRepository, dslJson)
 
-    embeddedServer(Netty, port = port, configure = {
-        this.requestQueueLimit = 8
-        this.runningLimit = 16
-        this.responseWriteTimeoutSeconds = 1
-    }) {
+    embeddedServer(Netty, port = port) {
         routing { routes.getRoute(this) }
     }.start(wait = true)
 }
 
 fun createAccountRepository(now: Long): IAccountRepository {
-    val database = Database.connect("jdbc:h2:mem:regular;DB_CLOSE_DELAY=-1", "org.h2.Driver")
+    val database = Database.connect(
+        "jdbc:h2:mem:regular;DB_CLOSE_DELAY=-1",
+        "org.h2.Driver"
+    )
     return SqlAccountRepository(database, now)
 }

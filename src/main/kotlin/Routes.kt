@@ -122,8 +122,9 @@ class Routes(
             }
 
             post("new") {
-                post = true
-
+                if (!post) {
+                    post = true
+                }
                 val account: Account
 
                 try {
@@ -147,7 +148,9 @@ class Routes(
             }
 
             post("{id}") {
-                post = true
+                if (!post) {
+                    post = true
+                }
                 val idStr = call.parameters["id"]
                 if (idStr == null) {
                     call.respond(HttpStatusCode.BadRequest, "{}")
@@ -187,7 +190,9 @@ class Routes(
                 return@post
             }
             post("likes") {
-                post = true
+                if (!post) {
+                    post = true
+                }
                 val likeInfoList: LikeInfoList
 
                 try {
