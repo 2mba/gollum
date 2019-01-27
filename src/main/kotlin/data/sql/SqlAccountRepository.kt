@@ -27,11 +27,6 @@ class SqlAccountRepository(val database: Database, val timestamp: Long) : IAccou
         transaction(Connection.TRANSACTION_SERIALIZABLE, 1, database) {
             addLogger(StdOutSqlLogger)
             SchemaUtils.create(AccountsTable)
-//            AccountsTable.index(true, AccountsTable.email)
-//            AccountsTable.index(false, AccountsTable.sex)
-//            AccountsTable.index(false, AccountsTable.status)
-//            AccountsTable.index(false, AccountsTable.country)
-//            AccountsTable.index(false, AccountsTable.city)
         }
    }
 
@@ -254,18 +249,16 @@ private object AccountsTable : Table() {
     val id: Column<Int> = integer("id").primaryKey()
     val fname = varchar("fname", 50).nullable()
     val sname = varchar("sname", 50).nullable()
-    val email = varchar("email", 100)
+    val email = varchar("email", 100).index(isUnique = true)
     val email_domain = varchar("email_domain", 100)
-    //val interests = varchar("interests", 50).nullable()
-    val status = integer("status").nullable()
+    val status = integer("status").nullable().index()
     val premium_start = long("premium_start").nullable()
     val premium_finish = long("premium_finish").nullable()
-    val sex = integer("sex").nullable()
+    val sex = integer("sex").nullable().index()
     val phone = varchar("phone", 50).nullable()
-    //val likes = varchar("likes", 50).nullable()
     val birth = long("birth").nullable()
-    val city = varchar("city", 50).nullable()
-    val country = varchar("country", 50).nullable()
+    val city = varchar("city", 50).nullable().index()
+    val country = varchar("country", 50).nullable().index()
     val joined = long("joined").nullable()
 }
 
@@ -275,13 +268,11 @@ private fun AccountsTable.toDbEntity(insertStatement: InsertStatement<*>, accoun
     insertStatement[sname] = account.sname
     insertStatement[email] = account.email
     insertStatement[email_domain] = account.email.split('@')[1]
-    //insertStatement[interests] = account.interests
     insertStatement[status] = StatusDbMapper.toDbValue(account.status!!)
     insertStatement[premium_start] = if (account.premium == null) null else account.premium.start
     insertStatement[premium_finish] = if (account.premium == null) null else account.premium.finish
     insertStatement[sex] = SexDbMapper.toDbValue(account.sex!!)
     insertStatement[phone] = account.phone
-    //insertStatement[likes] = account.likes
     insertStatement[birth] = account.birth
     insertStatement[city] = account.city
     insertStatement[country] = account.country
