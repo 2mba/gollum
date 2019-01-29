@@ -142,10 +142,10 @@ class Routes(
                     return@post
                 }
 
-               /* if (!inMemoryRepository.tryInsert(account)) {
+                if (!repository.insert(account)) {
                     call.respond(HttpStatusCode.BadRequest, "{}")
                     return@post
-                }*/
+                }
 
                 call.respond(HttpStatusCode.Created, "{}")
                 return@post
@@ -178,10 +178,10 @@ class Routes(
                 }
 
                 try {
-                    /*if (!inMemoryRepository.tryUpdate(id, accountPatch)) {
+                    if (!repository.update(id, accountPatch)) {
                         call.respond(HttpStatusCode.NotFound, "{}")
                         return@post
-                    }*/
+                    }
                 } catch (ex: IllegalArgumentException) {
                     call.respond(HttpStatusCode.BadRequest, "{}")
                     return@post

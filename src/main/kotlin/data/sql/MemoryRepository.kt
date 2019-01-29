@@ -7,20 +7,30 @@ import java.time.LocalDate
 
 class MemoryRepository(private val now: Long) : IAccountRepository {
 
-    private val accounts: MutableList<AccountEntity> = ArrayList(1_300_000)
+    private val accounts = Array<AccountEntity?>(1_340_000) { null }
     private val countries: MutableList<String> = ArrayList()
     private val cities: MutableList<String> = ArrayList()
     private val countriesMap: MutableMap<String, Int> = HashMap()
     private val citiesMap: MutableMap<String, Int> = HashMap()
     private val domains: MutableMap<String, Int> = HashMap()
     private var domainsSize = 0
+    private val interestsMap: MutableMap<String, Int> = HashMap()
+    private val interests: MutableList<String> = ArrayList()
 
     override fun insert(accounts: List<Account>) {
         accounts.forEach { insert(it) }
     }
 
     override fun insert(account: Account): Boolean {
-        accounts.add(account.toEntity())
+        val id = account.id
+        if (id !in accounts.indices) {
+            println("Insert: out of range: $id")
+            return false
+        }
+        if (accounts[id] != null) {
+            return false
+        }
+        accounts[id] = account.toEntity()
         return true
     }
 
@@ -36,10 +46,10 @@ class MemoryRepository(private val now: Long) : IAccountRepository {
             .reversedIterator()
             .asSequence()
             .filter { entity ->
-                entity.filter(conditions)
+                entity?.filter(conditions) ?: false
             }
             .take(limit)
-            .map { it.toAccount(fields) }
+            .map { it!!.toAccount(fields) }
             .toList()
     }
 
@@ -114,6 +124,18 @@ class MemoryRepository(private val now: Long) : IAccountRepository {
             val newId = cities.size
             cities.add(city)
             citiesMap[city] = newId
+            newId
+        }
+    }
+
+    private fun getInterestId(interest: String): Int {
+        val id = interestsMap.getOrDefault(interest, -1)
+        return if (id >= 0) {
+            id
+        } else {
+            val newId = interests.size
+            interests.add(interest)
+            interestsMap[interest] = newId
             newId
         }
     }
@@ -306,9 +328,9 @@ private class AccountEntity(
     val likes: Array<Like>? = null
 )
 
-private fun <T> List<T>.reversedIterator(): Iterator<T> = ReverseIterator(this)
+private fun <T> Array<T>.reversedIterator(): Iterator<T> = ReverseIterator(this)
 
-class ReverseIterator<T>(private val list: List<T>) : Iterator<T>, Iterable<T> {
+class ReverseIterator<T>(private val list: Array<T>) : Iterator<T>, Iterable<T> {
     private var position: Int = 0
 
     init {
