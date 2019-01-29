@@ -6,6 +6,7 @@ import org.tumba.gollum.domain.repository.IAccountRepository
 import java.time.LocalDate
 import kotlin.math.min
 
+@ExperimentalUnsignedTypes
 class MemoryRepository(private val now: Long) : IAccountRepository {
 
     private val accounts = Array<AccountEntity?>(1_340_000) { null }
@@ -109,6 +110,7 @@ class MemoryRepository(private val now: Long) : IAccountRepository {
     private fun Account.toEntity(): AccountEntity {
         val account = this
         val domain = getEmailDomain(account.email)
+        val interestBitsets = account.interests?.let { getInterests(it) } ?: 0L to 0L
         return AccountEntity(
             id = account.id,
             email = account.email.intern(),
@@ -123,10 +125,10 @@ class MemoryRepository(private val now: Long) : IAccountRepository {
             city = account.city?.let { getCityId(it) },
             joined = account.joined,
             status = account.status?.toEntity()!!,
-            interests = arrayOf(),
             premiumStart = account.premium?.start,
             premiumFinish = account.premium?.finish,
-            likes = arrayOf()
+            interestsBitset1 = interestBitsets.first,
+            interestsBitset2 = interestBitsets.second
         )
     }
 
@@ -144,8 +146,13 @@ class MemoryRepository(private val now: Long) : IAccountRepository {
             city = entity.city?.let { cities[it] }.filterField("city", fields),
             joined = entity.joined.filterField("joined", fields),
             status = entity.status.toStatus().filterField("status", fields),
-            interests = arrayListOf<String>().filterField("interests", fields),
-            premium = entity.premiumStart?.let { Premium(entity.premiumStart!!, entity.premiumFinish!!) }.filterField("premium", fields),
+            interests = null,
+            premium = entity.premiumStart?.let {
+                Premium(
+                    entity.premiumStart!!,
+                    entity.premiumFinish!!
+                )
+            }.filterField("premium", fields),
             likes = arrayListOf<Like>().filterField("likes", fields)
         )
     }
@@ -178,16 +185,48 @@ class MemoryRepository(private val now: Long) : IAccountRepository {
         }
     }
 
-    private fun getInterestId(interest: String): Int {
+    private fun getInterestId(interest: String, addIfUnknown: Boolean = true): Int {
         val id = interestsMap.getOrDefault(interest, -1)
         return if (id >= 0) {
             id
         } else {
-            val newId = interests.size
-            interests.add(interest)
-            interestsMap[interest] = newId
-            newId
+            if (addIfUnknown) {
+                val newId = interests.size
+                if (newId > 127) {
+                    println("Can't add interest: $interest, size = $newId")
+                    -1
+                } else {
+                    interests.add(interest)
+                    interestsMap[interest] = newId
+                    newId
+                }
+            } else {
+                -1
+            }
         }
+    }
+
+    private fun getInterests(interests: List<String>, addUnknownInterests: Boolean = true): Pair<Long, Long>? {
+        var bitset1 = 0L
+        var bitset2 = 0L
+        interests
+            .asSequence()
+            .map { getInterestId(it, addUnknownInterests) }
+            .forEach { id ->
+                if (id < 0) {
+                    if (addUnknownInterests) {
+                        return null
+                    } else {
+                        return@forEach
+                    }
+                }
+                if (id <= 63) {
+                    bitset1 = bitset1.or(1L.shl(id))
+                } else {
+                    bitset2 = bitset2.or(1L.shl(id - 64))
+                }
+            }
+        return bitset1 to bitset2
     }
 
     private fun AccountEntity.filter(conditions: List<FieldCondition>): Boolean {
@@ -208,6 +247,7 @@ class MemoryRepository(private val now: Long) : IAccountRepository {
             "birth" -> filterBirth(birth, condition.predicate, condition.value)
             "premium" -> filterPremium(premiumStart, premiumFinish, condition.predicate, condition.value)
             "phone" -> filterPhone(phone, code, condition.predicate, condition.value)
+            "interests" -> filterInterests(interestsBitset1, interestsBitset2, condition.predicate, condition.value)
             else -> true
         }
     }
@@ -293,14 +333,19 @@ class MemoryRepository(private val now: Long) : IAccountRepository {
         }
     }
 
-    private fun filterPremium(premiumStart: Long?, premiumFinish: Long?, predicate: String, filterValue: String): Boolean {
+    private fun filterPremium(
+        premiumStart: Long?,
+        premiumFinish: Long?,
+        predicate: String,
+        filterValue: String
+    ): Boolean {
         return when (predicate) {
             "null" -> if (filterValue == "0") premiumStart != null else premiumStart == null
             "now" -> {
-                if (null == premiumStart|| null == premiumFinish)
+                if (null == premiumStart || null == premiumFinish)
                     false
                 else
-                    now in premiumStart .. premiumFinish
+                    now in premiumStart..premiumFinish
             }
             else -> true
         }
@@ -320,6 +365,23 @@ class MemoryRepository(private val now: Long) : IAccountRepository {
         return when (predicate) {
             "code" -> filterValue.toShortOrNull()?.equals(code) ?: false
             "null" -> if (filterValue == "0") phone != null else phone == null
+            else -> true
+        }
+    }
+
+    private fun filterInterests(bitset1: Long, bitset2: Long, predicate: String, filterValue: String): Boolean {
+        val interestsInput = filterValue.split(',')
+        val checkBitset = getInterests(interestsInput, addUnknownInterests = false)!!
+        return when (predicate) {
+            "contains" -> {
+                val res1 = bitset1.and(checkBitset.first) == checkBitset.first
+                val res2 = bitset2.and(checkBitset.second) == checkBitset.second
+                return res1 && res2
+            }
+            "any" -> {
+                return bitset1.and(checkBitset.first) > 0 ||
+                    bitset2.and(checkBitset.second) > 0
+            }
             else -> true
         }
     }
@@ -382,10 +444,10 @@ private class AccountEntity(
     var city: Int? = null,
     var joined: Long? = null,
     var status: Int,
-    var interests: Array<Int>? = null,
+    var interestsBitset1: Long,
+    var interestsBitset2: Long,
     var premiumStart: Long? = null,
-    var premiumFinish: Long? = null,
-    var likes: Array<Like>? = null
+    var premiumFinish: Long? = null
 )
 
 private fun <T> Array<T>.reversedIterator(lastId: Int): Iterator<T> = ReverseIterator(this, lastId)

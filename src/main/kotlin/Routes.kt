@@ -81,7 +81,7 @@ class Routes(
                 val limitStr = context.request.queryParameters["limit"]
                 val limit = limitStr!!.toInt()
 
-                if (fieldConditions.any { x -> x.fieldName == "likes" || x.fieldName == "interests" }) {
+                if (fieldConditions.any { x -> x.fieldName == "likes" }) {
                     val jsonWriter = dslJson.newWriter()
                     dslJson.serialize(jsonWriter, AccountList(arrayListOf()))
                     call.respond(jsonWriter.toString())
