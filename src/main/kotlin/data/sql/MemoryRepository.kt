@@ -4,6 +4,7 @@ import domain.FieldCondition
 import org.tumba.gollum.domain.entities.*
 import org.tumba.gollum.domain.repository.IAccountRepository
 import java.time.LocalDate
+import kotlin.math.min
 
 class MemoryRepository(private val now: Long) : IAccountRepository {
 
@@ -16,6 +17,8 @@ class MemoryRepository(private val now: Long) : IAccountRepository {
     private var domainsSize = 0
     private val interestsMap: MutableMap<String, Int> = HashMap()
     private val interests: MutableList<String> = ArrayList()
+
+    private var lastId = 0
 
     override fun insert(accounts: List<Account>) {
         accounts.forEach { insert(it) }
@@ -31,10 +34,56 @@ class MemoryRepository(private val now: Long) : IAccountRepository {
             return false
         }
         accounts[id] = account.toEntity()
+        if (lastId < id) {
+            lastId = id
+        }
         return true
     }
 
     override fun update(id: Int, accountPatch: AccountPatch): Boolean {
+        if (id !in accounts.indices) {
+            println("Insert: out of range: $id")
+            return false
+        }
+        val entity = accounts[id] ?: return false
+
+        if (accountPatch.email != null) {
+            entity.email = accountPatch.email
+        }
+        if (accountPatch.fname != null) {
+            entity.fname = accountPatch.fname
+        }
+        if (accountPatch.sname != null) {
+            entity.sname = accountPatch.sname
+        }
+        if (accountPatch.sex != null) {
+            entity.sex = accountPatch.sex.toSexEntityValue()
+        }
+        if (accountPatch.country != null) {
+            entity.country = getCountryId(accountPatch.country)
+        }
+        if (accountPatch.city != null) {
+            entity.city = getCityId(accountPatch.city)
+        }
+        if (accountPatch.joined != null) {
+            entity.joined = accountPatch.joined
+        }
+        if (accountPatch.status != null) {
+            entity.status = accountPatch.status.toStatusEntityValue()
+        }
+        /*if (accountPatch.interests != null) {
+            entity.interests = accountPatch.interests
+        }*/
+        /*if (accountPatch.likes != null) {
+            entity.likes = accountPatch.likes
+        }*/
+        if (accountPatch.premium != null) {
+            entity.premiumStart = accountPatch.premium.start
+            entity.premiumFinish = accountPatch.premium.finish
+        }
+        if (accountPatch.birth != null) {
+            entity.birth = accountPatch.birth
+        }
         return true
     }
 
@@ -43,7 +92,7 @@ class MemoryRepository(private val now: Long) : IAccountRepository {
             conditions.forEach { add(it.fieldName) }
         }
         return accounts
-            .reversedIterator()
+            .reversedIterator(lastId)
             .asSequence()
             .filter { entity ->
                 entity?.filter(conditions) ?: false
@@ -95,7 +144,7 @@ class MemoryRepository(private val now: Long) : IAccountRepository {
             joined = entity.joined.filterField("joined", fields),
             status = entity.status.toStatus().filterField("status", fields),
             interests = arrayListOf<String>().filterField("interests", fields),
-            premium = entity.premiumStart?.let { Premium(entity.premiumStart, entity.premiumFinish!!) }.filterField("premium", fields),
+            premium = entity.premiumStart?.let { Premium(entity.premiumStart!!, entity.premiumFinish!!) }.filterField("premium", fields),
             likes = arrayListOf<Like>().filterField("likes", fields)
         )
     }
@@ -310,31 +359,34 @@ private fun String.toStatusEntityValue(): Int {
 typealias Id = Int
 
 private class AccountEntity(
-    val id: Id,
-    val email: String,
-    val domain: Int,
-    val fname: String? = null,
-    val sname: String? = null,
-    val phone: String? = null,
-    val sex: Int,
-    val birth: Long? = null,
-    val country: Int? = null,
-    val city: Int? = null,
-    val joined: Long? = null,
-    val status: Int,
-    val interests: Array<Int>? = null,
-    val premiumStart: Long? = null,
-    val premiumFinish: Long? = null,
-    val likes: Array<Like>? = null
+    var id: Id,
+    var email: String,
+    var domain: Int,
+    var fname: String? = null,
+    var sname: String? = null,
+    var phone: String? = null,
+    var sex: Int,
+    var birth: Long? = null,
+    var country: Int? = null,
+    var city: Int? = null,
+    var joined: Long? = null,
+    var status: Int,
+    var interests: Array<Int>? = null,
+    var premiumStart: Long? = null,
+    var premiumFinish: Long? = null,
+    var likes: Array<Like>? = null
 )
 
-private fun <T> Array<T>.reversedIterator(): Iterator<T> = ReverseIterator(this)
+private fun <T> Array<T>.reversedIterator(lastId: Int): Iterator<T> = ReverseIterator(this, lastId)
 
-class ReverseIterator<T>(private val list: Array<T>) : Iterator<T>, Iterable<T> {
+class ReverseIterator<T>(
+    private val list: Array<T>,
+    lastId: Int
+) : Iterator<T>, Iterable<T> {
     private var position: Int = 0
 
     init {
-        this.position = list.size - 1
+        this.position = min(lastId, list.size - 1)
     }
 
     override fun iterator(): Iterator<T> {
