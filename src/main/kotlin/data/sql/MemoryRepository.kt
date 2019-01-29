@@ -116,6 +116,7 @@ class MemoryRepository(private val now: Long) : IAccountRepository {
             fname = account.fname?.intern(),
             sname = account.sname?.intern(),
             phone = account.phone?.intern(),
+            code = account.phone?.substringAfter("(")?.substringBefore(")")?.toShortOrNull(),
             sex = account.sex?.toEntity()!!,
             birth = account.birth,
             country = account.country?.let { getCountryId(it) },
@@ -200,13 +201,13 @@ class MemoryRepository(private val now: Long) : IAccountRepository {
             "email" -> filterEmail(email, domain, condition.predicate, condition.value)
             "fname" -> filterString(fname, condition.predicate, condition.value)
             "sname" -> filterString(sname, condition.predicate, condition.value)
-            "phone" -> filterString(phone, condition.predicate, condition.value)
             "sex" -> filterInt(sex, condition.predicate, condition.value.toSexEntityValue())
             "status" -> filterInt(status, condition.predicate, condition.value.toStatusEntityValue())
             "country" -> filterCountry(country, condition.predicate, condition.value)
             "city" -> filterCity(city, condition.predicate, condition.value)
             "birth" -> filterBirth(birth, condition.predicate, condition.value)
-            "premium" -> filterPremium(premiumStart, premiumFinish, condition.predicate)
+            "premium" -> filterPremium(premiumStart, premiumFinish, condition.predicate, condition.value)
+            "phone" -> filterPhone(phone, code, condition.predicate, condition.value)
             else -> true
         }
     }
@@ -221,8 +222,8 @@ class MemoryRepository(private val now: Long) : IAccountRepository {
                     domain == id
                 }
             }
-            "gt" -> email < filterValue
-            "lt" -> email > filterValue
+            "gt" -> email > filterValue
+            "lt" -> email < filterValue
             else -> true
         }
     }
@@ -310,6 +311,15 @@ class MemoryRepository(private val now: Long) : IAccountRepository {
             "eq" -> value == filterValue
             "gt" -> value > filterValue
             "lt" -> value < filterValue
+            "neq" -> value != filterValue
+            else -> true
+        }
+    }
+
+    private fun filterPhone(phone: String?, code: Short?, predicate: String, filterValue: String): Boolean {
+        return when (predicate) {
+            "code" -> filterValue.toShortOrNull()?.equals(code) ?: false
+            "null" -> if (filterValue == "0") phone != null else phone == null
             else -> true
         }
     }
@@ -365,6 +375,7 @@ private class AccountEntity(
     var fname: String? = null,
     var sname: String? = null,
     var phone: String? = null,
+    var code: Short? = null,
     var sex: Int,
     var birth: Long? = null,
     var country: Int? = null,
