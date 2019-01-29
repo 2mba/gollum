@@ -293,9 +293,9 @@ class MemoryRepository(private val now: Long) : IAccountRepository {
         }
     }
 
-    private fun filterPremium(premiumStart: Long?, premiumFinish: Long?, predicate: String): Boolean {
+    private fun filterPremium(premiumStart: Long?, premiumFinish: Long?, predicate: String, filterValue: String): Boolean {
         return when (predicate) {
-            "null" -> null == premiumStart
+            "null" -> if (filterValue == "0") premiumStart != null else premiumStart == null
             "now" -> {
                 if (null == premiumStart|| null == premiumFinish)
                     false
