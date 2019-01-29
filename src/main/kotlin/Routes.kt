@@ -21,16 +21,9 @@ class Routes(
     private val repository: IAccountRepository,
     private val dslJson: DslJson<Any>
 ) {
-    @Volatile var post: Boolean = false
-
     fun getRoute(routing: Routing) {
         routing.route("accounts") {
             get("filter") {
-                if (post) {
-                    call.respond(HttpStatusCode.BadRequest, "{}")
-                    return@get
-                }
-
                 val queryParams = context.request.queryParameters
                     .filter { param, _ -> param != "limit" && param != "query_id" }
                     .flattenEntries()
@@ -67,10 +60,6 @@ class Routes(
             }
 
             get("group") {
-                if (post) {
-                    call.respond(HttpStatusCode.BadRequest, "{}")
-                    return@get
-                }
                 val groupQueryParams = context.request.queryParameters
                     .filter { param, _ -> param != "limit" && param != "query_id" && param != "keys" && param != "order" }
                     .flattenEntries()
@@ -122,9 +111,6 @@ class Routes(
             }
 
             post("new") {
-                if (!post) {
-                    post = true
-                }
                 val account: Account
 
                 try {
@@ -138,19 +124,16 @@ class Routes(
                     return@post
                 }
 
-                if (!repository.insert(account)) {
-                    call.respond(HttpStatusCode.BadRequest, "{}")
-                    return@post
-                }
+//                if (!repository.insert(account)) {
+//                    call.respond(HttpStatusCode.BadRequest, "{}")
+//                    return@post
+//                }
 
                 call.respond(HttpStatusCode.Created, "{}")
                 return@post
             }
 
             post("{id}") {
-                if (!post) {
-                    post = true
-                }
                 val idStr = call.parameters["id"]
                 if (idStr == null) {
                     call.respond(HttpStatusCode.BadRequest, "{}")
@@ -177,10 +160,10 @@ class Routes(
                 }
 
                 try {
-                    if (!repository.update(id, accountPatch)) {
-                        call.respond(HttpStatusCode.NotFound, "{}")
-                        return@post
-                    }
+//                    if (!repository.update(id, accountPatch)) {
+//                        call.respond(HttpStatusCode.NotFound, "{}")
+//                        return@post
+//                    }
                 } catch (ex: IllegalArgumentException) {
                     call.respond(HttpStatusCode.BadRequest, "{}")
                     return@post
@@ -190,9 +173,6 @@ class Routes(
                 return@post
             }
             post("likes") {
-                if (!post) {
-                    post = true
-                }
                 val likeInfoList: LikeInfoList
 
                 try {
@@ -206,6 +186,8 @@ class Routes(
                     call.respond(HttpStatusCode.Accepted, "{}")
                     return@post
                 }
+
+                // TODO: insert likes
 
                 call.respond(HttpStatusCode.Accepted, "{}")
                 return@post

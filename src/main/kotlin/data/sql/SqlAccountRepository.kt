@@ -17,6 +17,7 @@ import org.tumba.gollum.domain.repository.IAccountRepository
 import java.sql.Connection
 import java.time.LocalDate
 
+
 class SqlAccountRepository(val database: Database, val timestamp: Long) : IAccountRepository {
 
     init {
@@ -63,7 +64,6 @@ class SqlAccountRepository(val database: Database, val timestamp: Long) : IAccou
         catch (ex: Throwable) {
             return false
         }
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
     override fun filter(conditions: List<FieldCondition>, limit: Int): List<Account> {
@@ -133,15 +133,6 @@ class SqlAccountRepository(val database: Database, val timestamp: Long) : IAccou
     }
 
     private fun createFilters(conditions: List<FieldCondition>): Pair<List<Column<*>>, List<Op<Boolean>>> {
-        // todo: move to static
-        val stringColumns = hashMapOf(
-            Pair("fname", AccountsTable.fname),
-            Pair("sname", AccountsTable.sname),
-            Pair("phone", AccountsTable.phone),
-            Pair("country", AccountsTable.country),
-            Pair("city", AccountsTable.city)
-        )
-
         val usedColumns = ArrayList<Column<*>>()
         usedColumns.add(AccountsTable.id)
         usedColumns.add(AccountsTable.email)
@@ -251,16 +242,25 @@ private object AccountsTable : Table() {
     val sname = varchar("sname", 50).nullable()
     val email = varchar("email", 100).index(isUnique = true)
     val email_domain = varchar("email_domain", 100)
-    val status = integer("status").nullable().index()
+    val status = integer("status").nullable() //.index()
     val premium_start = long("premium_start").nullable()
     val premium_finish = long("premium_finish").nullable()
-    val sex = integer("sex").nullable().index()
+    val sex = integer("sex").nullable() //.index()
     val phone = varchar("phone", 50).nullable()
     val birth = long("birth").nullable()
-    val city = varchar("city", 50).nullable().index()
-    val country = varchar("country", 50).nullable().index()
+    val city = varchar("city", 50).nullable() //.index()
+    val country = varchar("country", 50).nullable() //.index()
     val joined = long("joined").nullable()
 }
+
+
+private val stringColumns = hashMapOf(
+    Pair("fname", AccountsTable.fname),
+    Pair("sname", AccountsTable.sname),
+    Pair("phone", AccountsTable.phone),
+    Pair("country", AccountsTable.country),
+    Pair("city", AccountsTable.city)
+)
 
 private fun AccountsTable.toDbEntity(insertStatement: InsertStatement<*>, account: Account) {
     insertStatement[id] = account.id

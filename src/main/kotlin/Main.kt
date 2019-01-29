@@ -24,7 +24,7 @@ fun main(args: Array<String>) {
     val accountRepository = createAccountRepository(optionsNow)
     val dslJson = DslJson<Any>(Settings.withRuntime<Any>().includeServiceLoader().skipDefaultValues(true))
 
-    Timer("memoryusage", false).schedule(5000, 90000) {
+    Timer("memoryusage", false).schedule(5000, 30000) {
         val bytesUsage = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()
         println("Memory Usage: ${bytesUsage/1024/1024} mb (${bytesUsage} bytes)")
     }
